@@ -29,14 +29,14 @@ s = net.createServer(net.UDP)
 s:on("receive",function(conn, data) on_msg(data) end)
 s:listen(5000)
 
-set(false)
+-- set(false)
+set(true)
 
 -- gpio.mode(relay, gpio.INPUT)
-gpio.mode(relay, gpio.INT)
-gpio.trig(key, "down", function() print ("key") end)
+-- gpio.trig(key, "down", function() print ("key") end)
 
 -- goto sleep in 10
-print('tmr.alarm(0, 10000, 0, function() print("none") end)')
+print('tmr.alarm(0, 1000, 0, function() print("none") end)')
 
 tmr.alarm(0, 10000, 0, function() node.dsleep(10000000) end)
 
