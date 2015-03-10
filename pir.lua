@@ -19,22 +19,15 @@ function tx(req)
     conn:send("GET /" .. req .. " HTTP/1.1\r\nHost: esp8266\r\n\r\n")
 end
 
---[[
-key = 3
-gpio.mode(key, gpio.INPUT)
-gpio.mode(key, gpio.INT)
-gpio.trig(key, "down", function() tx("key") end)
-]]
-
 set_relay(false)
 
 function on_pir()
     set_relay(true)
     tmr.alarm(0, 2000, function() set_relay(false) end)
-    tx("wiki/pir.cgp")
+    tx("wiki/iot.cgp?pir=1")
 end
 
-pir = 5
+pir = 5 -- GPIO14
 gpio.mode(pir, gpio.INPUT)
 gpio.trig(pir, "down", on_pir)
 
