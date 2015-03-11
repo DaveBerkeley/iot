@@ -3,6 +3,7 @@
 import time
 import os
 import json
+import optparse
 
 # see https://pythonhosted.org/watchdog
 from watchdog.observers import Observer
@@ -11,34 +12,26 @@ from watchdog.observers import Observer
 #
 
 import socket
-import threading
 
 ADDR = "esp8266_1"
 PORT = 5000
 
 def relay():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.sendto("on", (ADDR, PORT))
-
-    def defer():
-        time.sleep(2)
-        sock.sendto("off", (ADDR, PORT))
-
-    thread = threading.Thread(target=defer)
-    thread.start()
+    sock.sendto("pulse=2000", (ADDR, PORT))
 
 #
 #
 
 class Handler:
 
-    def __init__(self):
+    def __init__(self, seek):
         self.f = None
         self.path = None
+        self.seek = seek
 
     def on_data(self, data):
         print data
-        #if data.get("ipaddr") == "192.168.0.105":
         if data.get("pir") == "1":
             relay()
 
@@ -48,9 +41,8 @@ class Handler:
         if self.f is None:
             self.f = open(path, "r")
             self.path = path
-            # TODO : remove me?
-            # ignore the initial data ... TEMP
-            self.f.seek(0, os.SEEK_END)
+            if self.seek:
+                self.f.seek(0, os.SEEK_END)
 
         # read all the pending changes
         while True:
@@ -71,9 +63,14 @@ class Handler:
 
 if __name__ == "__main__":
 
-    path = "/usr/local/data/iot"
+    p = optparse.OptionParser()
+    p.add_option("-p", "--path", dest="path", default="/usr/local/data/iot")
+    p.add_option("-s", "--seek", dest="seek", action="store_true")
+    opts, args = p.parse_args()    
 
-    event_handler = Handler()
+    path = opts.path
+
+    event_handler = Handler(seek=opts.seek)
 
     observer = Observer()
     observer.schedule(event_handler, path, recursive=True)
