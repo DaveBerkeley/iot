@@ -10,6 +10,26 @@ from watchdog.observers import Observer
 #
 #
 
+import socket
+import threading
+
+ADDR = "esp8266_1"
+PORT = 5000
+
+def relay():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.sendto("on", (ADDR, PORT))
+
+    def defer():
+        time.sleep(2)
+        sock.sendto("off", (ADDR, PORT))
+
+    thread = threading.Thread(target=defer)
+    thread.start()
+
+#
+#
+
 class Handler:
 
     def __init__(self):
@@ -18,6 +38,9 @@ class Handler:
 
     def on_data(self, data):
         print data
+        #if data.get("ipaddr") == "192.168.0.105":
+        if data.get("pir") == "1":
+            relay()
 
     def handle_file_change(self, path):
         if self.path != path:
@@ -25,6 +48,9 @@ class Handler:
         if self.f is None:
             self.f = open(path, "r")
             self.path = path
+            # TODO : remove me?
+            # ignore the initial data ... TEMP
+            self.f.seek(0, os.SEEK_END)
 
         # read all the pending changes
         while True:
