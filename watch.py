@@ -12,14 +12,33 @@ from watchdog.observers import Observer
 
 class Handler:
 
-    def handle(self, path):
-        print path
+    def __init__(self):
+        self.f = None
+        self.path = None
+
+    def on_data(self, data):
+        print data
+
+    def handle_file_change(self, path):
+        if self.path != path:
+            self.f = None
+        if self.f is None:
+            self.f = open(path, "r")
+            self.path = path
+
+        # read all the pending changes
+        while True:
+            jdata = self.f.readline()
+            if not jdata:
+                break
+            data = json.loads(jdata)
+            self.on_data(data)
 
     def dispatch(self, event):
         if event.event_type == "modified":
             path = event.src_path
             if path.endswith(".log"):
-                self.handle(path)
+                self.handle_file_change(path)
 
 #
 #
