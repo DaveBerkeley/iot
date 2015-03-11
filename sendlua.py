@@ -2,6 +2,8 @@
 
 import sys
 import time
+import os
+import optparse
 
 import serial
 
@@ -16,29 +18,43 @@ def quoted(text):
 #
 #
 
-con = serial.Serial("/dev/ttyUSB0", 9600, timeout=5)
+if __name__ == "__main__":
 
-fname = sys.argv[1]
+    dev = "/dev/ser"
+    if not os.path.exists(dev):
+        dev = "/dev/ttyUSB0"
 
-if len(sys.argv) > 2:
-    ofile = sys.argv[2]
-else:
-    ofile = None
+    p = optparse.OptionParser()
+    p.add_option("-r", "--reset", dest="reset", action="store_true")
+    p.add_option("-w", "--write", dest="write")
+    p.add_option("-d", "--dev", dest="dev", default=dev)
 
-if ofile:
-    con.write('file.open("%s","w")\n' % ofile)
+    opts, args = p.parse_args()
 
-for line in file(fname):
-    print `line`
+    con = serial.Serial(dev, 9600, timeout=5)
+
+    if opts.reset:
+        con.write('\nnode.restart()\n')
+        time.sleep(4)
+        con.write('\n')
+
+    ofile = opts.write
     if ofile:
-        line = line.strip()
-        line = 'file.writeline([[' + quoted(line) + ']])\n'
-        con.write(line)
-    else:
-        con.write(line)
-    time.sleep(0.2)
+        con.write('file.open("%s","w")\n' % ofile)
+        time.sleep(1)
 
-if ofile:
-    con.write('file.close()\n')
+    for fname in args:
+        for line in file(fname):
+            print `line`
+            if ofile:
+                line = line.strip()
+                line = 'file.writeline([[' + quoted(line) + ']])\n'
+                con.write(line)
+            else:
+                con.write(line)
+            time.sleep(0.2)
+
+    if ofile:
+        con.write('file.close()\n')
 
 # FIN
