@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
 import time
+import os
+import json
 
 # see https://pythonhosted.org/watchdog
 from watchdog.observers import Observer
@@ -9,8 +11,15 @@ from watchdog.observers import Observer
 #
 
 class Handler:
+
+    def handle(self, path):
+        print path
+
     def dispatch(self, event):
-        print event
+        if event.event_type == "modified":
+            path = event.src_path
+            if path.endswith(".log"):
+                self.handle(path)
 
 #
 #
