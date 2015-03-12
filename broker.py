@@ -6,7 +6,7 @@ import mosquitto
 
 class Broker:
 
-    def __init__(self, client_id=None, server = "mosquitto"):
+    def __init__(self, client_id=None, server=None):
         self.server = server
         self.client_id = client_id
         self.dead = False
@@ -29,9 +29,11 @@ class Broker:
         self.thread = threading.Thread(target=run)
         self.thread.start()
 
-    def join(self):
+    def stop(self):
         self.client.disconnect()
         self.dead = True
+
+    def join(self):
         self.thread.join()
 
     def send(self, topic, data):
@@ -41,7 +43,7 @@ class Broker:
 #
 
 if __name__ == "__main__":
-    broker = Broker("any_id_here")
+    broker = Broker("any_id_here", server="mosquitto")
     broker.send("home/pir", "{'pir':'1'}")
 
 # FIN
