@@ -13,18 +13,6 @@ from broker import Broker
 #
 #
 
-import socket
-
-ADDR = "esp8266_1"
-PORT = 5000
-
-def relay():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.sendto("pulse=2000", (ADDR, PORT))
-
-#
-#
-
 class Handler:
 
     def __init__(self, broker, seek):
@@ -75,6 +63,7 @@ if __name__ == "__main__":
     path = opts.path
 
     broker = Broker("watcher")
+    broker.start()
     event_handler = Handler(broker, seek=opts.seek)
 
     observer = Observer()
@@ -86,6 +75,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         observer.stop()
 
+    broker.join()
     observer.join()
 
 # FIN
