@@ -36,15 +36,26 @@ def rivers_handler(broker, data):
 
     broker.send(topic, json.dumps(d))
 
+
+def power_handler(broker, data):
+    hms, power = data.split()
+    d = {
+        "power" : float(power),
+        "time" : hms,
+    }
+    broker.send("home/power", json.dumps(d))
+
 #
 #
 
 iot_dir = "/usr/local/data/iot"
 rivers_dir = "/usr/local/data/rivers"
+power_dir = "/usr/local/data/power"
 
 handlers = {
     iot_dir : iot_handler,
     rivers_dir : rivers_handler,
+    power_dir : power_handler,
 }
 
 paths = handlers.keys()
