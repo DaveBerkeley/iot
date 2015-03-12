@@ -25,8 +25,22 @@ def iot_handler(broker, data):
     broker.send("home/pir", data)
 
 def rivers_handler(broker, data):
+    # 2015-03-12 20:46:18 tick
+    # 2015-03-12 20:46:23 7267 'Kingston' 4.56
+
     # TODO : filter the ticks?
-    broker.send("rivers/level", data)
+    parts = data.split()
+    d = {}
+    d["time"] = parts[0].replace("/", "-") + " " + parts[1]
+    data = json.dumps(d)
+    if parts[2] == "tick":
+        d["id"] = "tick"
+        broker.send("rivers/tick", json.dumps(d))
+    else:
+        d["id"] = parts[2]
+        d["name"] = " ".join(parts[3:-1])
+        d["level"] = parts[-1]
+        broker.send("rivers/level", json.dumps(d))
 
 handlers = {
     iot_dir : iot_handler,
