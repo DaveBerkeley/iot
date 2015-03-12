@@ -13,39 +13,41 @@ from broker import Broker
 #
 #
 
-iot_dir = "/usr/local/data/iot"
-rivers_dir = "/tmp/usr/local/data/rivers"
-
-paths = [
-    iot_dir,
-    rivers_dir,
-]
-
 def iot_handler(broker, data):
     broker.send("home/pir", data)
 
 def rivers_handler(broker, data):
     # 2015-03-12 20:46:18 tick
-    # 2015-03-12 20:46:23 7267 'Kingston' 4.56
+    # 2015-03-12 20:46:23 7267 'Kingston Bridge' 4.56
 
-    # TODO : filter the ticks?
     parts = data.split()
     d = {}
-    d["time"] = parts[0].replace("/", "-") + " " + parts[1]
-    data = json.dumps(d)
+    d["time"] = parts[0].replace("-", "/") + " " + parts[1]
+
     if parts[2] == "tick":
         d["id"] = "tick"
-        broker.send("rivers/tick", json.dumps(d))
+        topic = "rivers/tick"
     else:
         d["id"] = parts[2]
-        d["name"] = " ".join(parts[3:-1])
-        d["level"] = parts[-1]
-        broker.send("rivers/level", json.dumps(d))
+        name = " ".join(parts[3:-1])
+        d["name"] = name[1:-1]
+        d["level"] = float(parts[-1])
+        topic = "rivers/level"
+
+    broker.send(topic, json.dumps(d))
+
+#
+#
+
+iot_dir = "/usr/local/data/iot"
+rivers_dir = "/usr/local/data/rivers"
 
 handlers = {
     iot_dir : iot_handler,
     rivers_dir : rivers_handler,
 }
+
+paths = handlers.keys()
 
 #
 #
