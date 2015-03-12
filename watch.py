@@ -23,9 +23,8 @@ class Handler:
 
     def on_data(self, data):
         print data
-        if data.get("pir") == "1":
+        if data.get("pir") != None:
             self.broker.send("home/pir", json.dumps(data))
-            #relay()
 
     def handle_file_change(self, path):
         if self.path != path:
@@ -53,26 +52,39 @@ class Handler:
 #
 #
 
+iot_dir = "/usr/local/data/iot"
+rivers_dir = "/usr/local/data/share/dave/flood"
+
 if __name__ == "__main__":
 
     p = optparse.OptionParser()
-    p.add_option("-p", "--path", dest="path", default="/usr/local/data/iot")
+    p.add_option("-i", "--iot", dest="iot", default=iot_dir)
+    p.add_option("-r", "--rivers", dest="rivers", default=rivers_dir)
     p.add_option("-s", "--seek", dest="seek", action="store_true")
     opts, args = p.parse_args()    
 
-    path = opts.path
+    paths = [
+        opts.iot,
+        opts.rivers,
+    ]
 
-    broker = Broker("watcher")
+    server = "mosquitto"
+    print "connect to", server
+    broker = Broker("watcher", server=server)
     broker.start()
+
     event_handler = Handler(broker, seek=opts.seek)
 
     observer = Observer()
-    observer.schedule(event_handler, path, recursive=True)
+    for path in paths:
+        print "monitor", path
+        observer.schedule(event_handler, path, recursive=True)
     observer.start()
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
+        broker.stop()
         observer.stop()
 
     broker.join()
