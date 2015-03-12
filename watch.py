@@ -21,6 +21,18 @@ paths = [
     rivers_dir,
 ]
 
+def iot_handler(broker, data):
+    broker.send("home/pir", data)
+
+def rivers_handler(broker, data):
+    # TODO : filter the ticks?
+    broker.send("rivers/level", data)
+
+handlers = {
+    iot_dir : iot_handler,
+    rivers_dir : rivers_handler,
+}
+
 #
 #
 
@@ -34,9 +46,9 @@ class Handler:
         self.seek = seek
 
     def on_data(self, tree, data):
-        print str(data)
-        #if data.get("pir") != None:
-        self.broker.send("home/pir", data)
+        print tree, str(data)
+        handler = handlers[tree]
+        handler(self.broker, data)
 
     def handle_file_change(self, path):
         tree = None
@@ -44,27 +56,20 @@ class Handler:
             if path.startswith(p):
                 tree = p
                 break
-        print "found", tree
 
         f = self.files.get(tree)
         if not f is None:
-            print str(f.name), str(path)
             if f.name != path:
-                print "changed", path
                 self.files[tree] = None
                 f = None
 
         newfile = False
         if f is None:
-            print "open", path
             newfile = True
             f = open(path, "r")
             self.files[tree] = f
 
-        print f
-
         if newfile and self.seek:
-            print "seek", f
             f.seek(0, os.SEEK_END)
 
         # read all the pending changes
@@ -72,7 +77,7 @@ class Handler:
             data = f.readline()
             if not data:
                 break
-            self.on_data(tree, data)
+            self.on_data(tree, data.strip())
 
     def dispatch(self, event):
         if event.event_type == "modified":
