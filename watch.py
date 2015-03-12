@@ -8,6 +8,8 @@ import optparse
 # see https://pythonhosted.org/watchdog
 from watchdog.observers import Observer
 
+from broker import Broker
+
 #
 #
 
@@ -25,7 +27,8 @@ def relay():
 
 class Handler:
 
-    def __init__(self, seek):
+    def __init__(self, broker, seek):
+        self.broker = broker
         self.f = None
         self.path = None
         self.seek = seek
@@ -33,7 +36,8 @@ class Handler:
     def on_data(self, data):
         print data
         if data.get("pir") == "1":
-            relay()
+            self.broker.send("home/pir", json.dumps(data))
+            #relay()
 
     def handle_file_change(self, path):
         if self.path != path:
@@ -70,7 +74,8 @@ if __name__ == "__main__":
 
     path = opts.path
 
-    event_handler = Handler(seek=opts.seek)
+    broker = Broker("watcher")
+    event_handler = Handler(broker, seek=opts.seek)
 
     observer = Observer()
     observer.schedule(event_handler, path, recursive=True)
