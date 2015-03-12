@@ -13,35 +13,66 @@ from broker import Broker
 #
 #
 
+iot_dir = "/usr/local/data/iot"
+rivers_dir = "/tmp/usr/local/data/rivers"
+
+paths = [
+    iot_dir,
+    rivers_dir,
+]
+
+#
+#
+
 class Handler:
 
     def __init__(self, broker, seek):
         self.broker = broker
-        self.f = None
-        self.path = None
+        self.files = {}
+        for path in paths:
+            self.files[path] = None
         self.seek = seek
 
-    def on_data(self, data):
-        print data
-        if data.get("pir") != None:
-            self.broker.send("home/pir", json.dumps(data))
+    def on_data(self, tree, data):
+        print str(data)
+        #if data.get("pir") != None:
+        self.broker.send("home/pir", data)
 
     def handle_file_change(self, path):
-        if self.path != path:
-            self.f = None
-        if self.f is None:
-            self.f = open(path, "r")
-            self.path = path
-            if self.seek:
-                self.f.seek(0, os.SEEK_END)
+        tree = None
+        for p in paths:
+            if path.startswith(p):
+                tree = p
+                break
+        print "found", tree
+
+        f = self.files.get(tree)
+        if not f is None:
+            print str(f.name), str(path)
+            if f.name != path:
+                print "changed", path
+                self.files[tree] = None
+                f = None
+
+        newfile = False
+        if f is None:
+            print "open", path
+            newfile = True
+            f = open(path, "r")
+            self.files[tree] = f
+
+        print f
+
+        if newfile and self.seek:
+            print "seek", f
+            f.seek(0, os.SEEK_END)
 
         # read all the pending changes
         while True:
-            jdata = self.f.readline()
-            if not jdata:
+            data = f.readline()
+            if not data:
                 break
-            data = json.loads(jdata)
-            self.on_data(data)
+            self.on_data(tree, data)
 
     def dispatch(self, event):
         if event.event_type == "modified":
@@ -52,21 +83,11 @@ class Handler:
 #
 #
 
-iot_dir = "/usr/local/data/iot"
-rivers_dir = "/usr/local/data/share/dave/flood"
-
 if __name__ == "__main__":
 
     p = optparse.OptionParser()
-    p.add_option("-i", "--iot", dest="iot", default=iot_dir)
-    p.add_option("-r", "--rivers", dest="rivers", default=rivers_dir)
     p.add_option("-s", "--seek", dest="seek", action="store_true")
     opts, args = p.parse_args()    
-
-    paths = [
-        opts.iot,
-        opts.rivers,
-    ]
 
     server = "mosquitto"
     print "connect to", server
