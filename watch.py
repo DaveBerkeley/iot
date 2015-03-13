@@ -15,7 +15,7 @@ from broker import Broker
 #   General home IoT data
 #
 
-def iot_handler(broker, data):
+def iot_handler(path, broker, data):
     topic = "home"
     try:
         jdata = json.loads(data)
@@ -28,7 +28,7 @@ def iot_handler(broker, data):
 #   River level monitor
 #
 
-def rivers_handler(broker, data):
+def rivers_handler(path, broker, data):
     # 2015-03-12 20:46:18 tick
     # 2015-03-12 20:46:23 7267 'Kingston Bridge' 4.56
 
@@ -51,37 +51,45 @@ def rivers_handler(broker, data):
 #   Smart meter : power usage
 #
 
-def power_handler(broker, data):
+def power_handler(path, broker, data):
+    # path: xxxx/yyyy/mm/dd.log
     # 230029 118.6
+    parts = path.split("/")
+    y, m, d = parts[-3], parts[-2], parts[-1][:2]
     hms, power = data.split()
     hms = ":".join([ hms[:2], hms[2:4], hms[4:] ])
     d = {
         "power" : float(power),
-        "time" : hms,
+        "time" : "%s/%s/%s %s" % (y, m, d, hms),
     }
     broker.send("home/power", json.dumps(d))
 
 #   Solar Power generation meter
 #
 
-def solar_handler(broker, data):
+def solar_handler(path, broker, data):
+    # path: xxxx/yyyy/mm/dd.log
     # 16:53:42 9151773
+    parts = path.split("/")
+    y, m, d = parts[-3], parts[-2], parts[-1][:2]
     hms, power = data.split()
     d = {
         "power" : int(power, 10),
-        "time" : hms,
+        "time" : "%s/%s/%s %s" % (y, m, d, hms),
     }
     broker.send("home/solar", json.dumps(d))
 
 #
 #   CPU / network monitoring for host
 
-def monitor_handler(broker, data):
+def monitor_handler(path, broker, data):
     # 07:27:02 0.14 0.14 0.09 772832 930861 35.0 31.0
     # hms load1, load2, load3 rx tx [ temp1 ... ]
+    parts = path.split("/")
+    y, m, d = parts[-3], parts[-2], parts[-1][:2]
     parts = data.split()
     d = {
-        "time" : parts[0],
+        "time" : "%s/%s/%s %s" % (y, m, d, parts[0]),
         # CPU load
         "load_0" : parts[1],
         "load_1" : parts[2],
@@ -129,10 +137,10 @@ class Handler:
             self.files[path] = None
         self.seek = seek
 
-    def on_data(self, tree, data):
+    def on_data(self, path, tree, data):
         print tree, str(data)
         handler = handlers[tree]
-        handler(self.broker, data)
+        handler(path, self.broker, data)
 
     def handle_file_change(self, path):
         tree = None
@@ -161,7 +169,7 @@ class Handler:
             data = f.readline()
             if not data:
                 break
-            self.on_data(tree, data.strip())
+            self.on_data(path, tree, data.strip())
 
     def dispatch(self, event):
         try:
@@ -180,9 +188,13 @@ if __name__ == "__main__":
 
     p = optparse.OptionParser()
     p.add_option("-s", "--seek", dest="seek", action="store_true")
+    p.add_option("-m", "--mqtt-server", dest="mqtt", default="mosquitto")
     opts, args = p.parse_args()    
 
-    server = "mosquitto"
+    if len(args):
+        paths = args
+
+    server = opts.mqtt
     print "connect to", server
     broker = Broker("watcher", server=server)
     broker.start()
