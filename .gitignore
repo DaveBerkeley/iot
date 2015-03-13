@@ -1,4 +1,4 @@
 *.pyc
 .*.swp
 *~
-test.lua
+esp8266/lua/test.lua
