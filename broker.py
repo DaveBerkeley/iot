@@ -4,6 +4,9 @@ import threading
 
 import mosquitto
 
+#
+#
+
 class Broker:
 
     def __init__(self, client_id=None, server=None):
@@ -11,12 +14,17 @@ class Broker:
         self.client_id = client_id
         self.dead = False
         self.thread = None
+        self.subscribes = {}
         assert(client_id)
         self.client = mosquitto.Mosquitto(client_id)
         self.client.connect(self.server)
 
         def on_message(x):
-            print "got", str(x)
+            handler = self.subscribes.get(x.topic)
+            if handler is None:
+                print "got", str(x)
+            else:
+                handler(x)
 
         self.client.on_message = on_message
 
@@ -38,6 +46,14 @@ class Broker:
 
     def send(self, topic, data):
         self.client.publish(topic, data)
+
+    def subscribe(self, topic, callback):
+        self.subscribes[topic] = callback
+        self.client.subscribe(topic)
+
+    def unsubscribe(self, topic):
+        self.client.unsubscribe(topic)
+        del self.subscribes[topic]
 
 #
 #
