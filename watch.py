@@ -2,19 +2,31 @@
 
 import time
 import os
+import sys
 import json
 import optparse
+import socket
 
 # see https://pythonhosted.org/watchdog
 from watchdog.observers import Observer
 
 from broker import Broker
 
-#
+#   General home IoT data
 #
 
 def iot_handler(broker, data):
-    broker.send("home/pir", data)
+    topic = "home"
+    try:
+        jdata = json.loads(data)
+        if jdata.get("pir") == "1":
+            topic = "home/pir"
+    except:
+        pass
+    broker.send(topic, data)
+
+#   River level monitor
+#
 
 def rivers_handler(broker, data):
     # 2015-03-12 20:46:18 tick
@@ -36,6 +48,9 @@ def rivers_handler(broker, data):
 
     broker.send(topic, json.dumps(d))
 
+#   Smart meter : power usage
+#
+
 def power_handler(broker, data):
     # 230029 118.6
     hms, power = data.split()
@@ -46,14 +61,42 @@ def power_handler(broker, data):
     }
     broker.send("home/power", json.dumps(d))
 
+#   Solar Power generation meter
+#
+
 def solar_handler(broker, data):
     # 16:53:42 9151773
     hms, power = data.split()
     d = {
-        "power" : float(power),
+        "power" : int(power, 10),
         "time" : hms,
     }
     broker.send("home/solar", json.dumps(d))
+
+#
+#   CPU / network monitoring for host
+
+def monitor_handler(broker, data):
+    # 07:27:02 0.14 0.14 0.09 772832 930861 35.0 31.0
+    # hms load1, load2, load3 rx tx [ temp1 ... ]
+    parts = data.split()
+    d = {
+        "time" : parts[0],
+        # CPU load
+        "load_0" : parts[1],
+        "load_1" : parts[2],
+        "load_2" : parts[3],
+        # Network
+        "rx" : parts[4],
+        "tx" : parts[5],
+    }
+    for i, temp in enumerate(parts[6:]):
+        d["temp_%d" % i] = temp 
+
+    host = socket.gethostname()
+    d["host"] = host
+
+    broker.send("home/net/" + host, json.dumps(d))
 
 #
 #
@@ -62,12 +105,14 @@ iot_dir = "/usr/local/data/iot"
 rivers_dir = "/usr/local/data/rivers"
 power_dir = "/usr/local/data/power"
 solar_dir = "/usr/local/data/solar"
+monitor_dir = "/usr/local/data/monitor"
 
 handlers = {
     iot_dir : iot_handler,
     rivers_dir : rivers_handler,
     power_dir : power_handler,
     solar_dir : solar_handler,
+    monitor_dir : monitor_handler,
 }
 
 paths = handlers.keys()
@@ -119,10 +164,14 @@ class Handler:
             self.on_data(tree, data.strip())
 
     def dispatch(self, event):
-        if event.event_type == "modified":
-            path = event.src_path
-            if path.endswith(".log"):
-                self.handle_file_change(path)
+        try:
+            if event.event_type == "modified":
+                path = event.src_path
+                if path.endswith(".log"):
+                    self.handle_file_change(path)
+        except Exception, ex:
+            print "Exception", str(ex)
+            sys.exit(0) # TODO : remove me
 
 #
 #
