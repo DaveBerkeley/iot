@@ -6,6 +6,7 @@ import sys
 import json
 import optparse
 import socket
+import traceback
 
 # see https://pythonhosted.org/watchdog
 from watchdog.observers import Observer
@@ -179,7 +180,60 @@ class Handler:
                     self.handle_file_change(path)
         except Exception, ex:
             print "Exception", str(ex)
+            traceback.print_exc()
             sys.exit(0) # TODO : remove me
+
+#   Tail
+#
+#   Simulate watchdog events
+
+import threading
+
+class Tail:
+
+    def __init__(self):
+        self.path = None
+        self.handler = None
+        self.f = None
+        self.thread = None
+        self.dead = False
+
+    def schedule(self, handler, path, *args, **kwargs):
+        print path, handler
+        assert self.path is None, "only one path allowed in Tail"
+        self.path = path
+        self.handler = handler
+        # need to kludge global handlers
+        # assuming yyyy/mm/dd.log
+        tree = path[:-len("/yyyy/mm/dd.log")]
+        assert handlers.get(tree)
+        handlers[path] = handlers[tree]
+
+    def run(self):
+        self.f = open(self.path, "r")
+        self.f.seek(0, os.SEEK_END)
+        while not self.dead:
+            line = self.f.readline()
+            if not line:
+                time.sleep(0.1)
+                continue
+            class Event:
+                pass
+            event = Event()
+            event.event_type = "modified"
+            event.src_path = self.path
+            self.handler.dispatch(event)
+
+    def start(self):
+        self.thread = threading.Thread(target=self.run)
+        self.thread.start()
+
+    def stop(self):
+        self.dead = True
+
+    def join(self):
+        if self.thread:
+            self.thread.join()
 
 #
 #
@@ -189,10 +243,17 @@ if __name__ == "__main__":
     p = optparse.OptionParser()
     p.add_option("-s", "--seek", dest="seek", action="store_true")
     p.add_option("-m", "--mqtt-server", dest="mqtt", default="mosquitto")
+    p.add_option("-t", "--tail", dest="tail", action="store_true")
+
     opts, args = p.parse_args()    
 
     if len(args):
         paths = args
+
+    if opts.tail:
+        observer = Tail()
+    else:
+        observer = Observer()
 
     server = opts.mqtt
     print "connect to", server
@@ -201,7 +262,6 @@ if __name__ == "__main__":
 
     event_handler = Handler(broker, seek=opts.seek)
 
-    observer = Observer()
     for path in paths:
         print "monitor", path
         observer.schedule(event_handler, path, recursive=True)
