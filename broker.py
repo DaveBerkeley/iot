@@ -21,10 +21,22 @@ class Broker:
 
         def on_message(x):
             handler = self.subscribes.get(x.topic)
-            if handler is None:
-                print "got", str(x)
-            else:
+            if handler:
                 handler(x)
+                return
+            handlers = []
+            for name, handler in self.subscribes.items():
+                if not name.endswith("#"):
+                    continue
+                idx = name.find("#")
+                if name[:idx] == x.topic[:idx]:
+                    handlers.append(handler)
+
+            if not handlers:
+                print "no handler for", str(x.topic), str(x.payload)
+            else:
+                for handler in handlers:
+                    handler(x)
 
         self.client.on_message = on_message
 
