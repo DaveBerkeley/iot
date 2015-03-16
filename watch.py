@@ -22,6 +22,8 @@ def iot_handler(path, broker, data):
         jdata = json.loads(data)
         if jdata.get("pir") == "1":
             topic = "home/pir"
+        if jdata.get("subtopic"):
+            topic += "/" + jdata["subtopic"]
     except:
         pass
     broker.send(topic, data)
