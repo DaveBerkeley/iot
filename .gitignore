@@ -2,3 +2,4 @@
 .*.swp
 *~
 esp8266/lua/test.lua
+xively_conf.py
