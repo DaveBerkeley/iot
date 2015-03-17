@@ -97,9 +97,9 @@ def on_msg(x):
         if (last_sent + 60) > now:
             return
 
-    info = idx, data["temp"]
+    info = ( ( str(idx), data["temp"], ), )
     log("COSM PUT", name, info)
-    cosm.put([ info, ])
+    cosm.put(info)
     last_send[name] = now
 
 #
