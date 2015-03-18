@@ -2,7 +2,8 @@
 
 import threading
 
-import mosquitto
+# https://eclipse.org/paho/clients/python/docs/
+import paho.mqtt.client as paho
 
 #
 #
@@ -16,7 +17,7 @@ class Broker:
         self.thread = None
         self.subscribes = {}
         assert(client_id)
-        self.client = mosquitto.Mosquitto(client_id)
+        self.client = paho.Client(client_id)
         self.client.connect(self.server)
 
         def on_message(x):
