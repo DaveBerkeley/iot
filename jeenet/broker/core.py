@@ -122,6 +122,11 @@ class Message:
 
 devices = {}
 
+on_new_handlers = []
+
+def on_new_device(handler):
+    on_new_handlers.append(handler)
+
 not_an_id = 0
 def noid():
     global not_an_id
@@ -144,6 +149,10 @@ class Device:
         self.last_response = None
         self.state = None
         self.killed = False
+
+        # run any 'on new device' code
+        for handler in on_new_handlers:
+            handler(node, self)
 
     def tx(self, msg):
         self.network.tx(self.dev_id, msg)

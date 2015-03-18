@@ -11,7 +11,7 @@ from broker.core import DeviceProxy
 host = "rpi"
 server = jsonrpclib.Server('http://%s:8888' % host)
 
-meter = DeviceProxy(server, "kettle")
+meter = DeviceProxy(server, "triac_4")
 
 #meter.set_mode(0)
 
