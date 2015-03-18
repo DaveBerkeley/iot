@@ -19,6 +19,15 @@ from devices.triac import Triac
 verbose = True
 
 #
+#   Known device types
+
+known_devices = {
+    "Test Device v1.0" : PirSensor, # TODO
+    "Triac Control v1.0" : Triac,
+    "PIR Device v1.0" : PirSensor,
+}
+
+#
 #   Handle unregistered Devices
 
 class UnknownHandler:
@@ -26,7 +35,21 @@ class UnknownHandler:
     def __init__(self, network, broker):
         self.network = network
         self.broker = broker
-        self.seen = {}
+
+    def add_device(self, node, data, info):
+        print info
+        dev = info.get("device")
+        if not dev in known_devices:
+            return False
+
+        klass = known_devices[dev]
+        name = "%s_%d" % (klass.__name__, node)
+        d = klass(dev_id=node, node=name, network=self.network, broker=self.broker)
+        print dir(klass)
+        d.description = dev
+        self.network.register(node, d.on_net)
+        d.on_net(node, data)
+        return True
 
     def on_device(self, node, data):
         fields = [
@@ -34,13 +57,11 @@ class UnknownHandler:
         ]
         try:
             msg_id, flags, info = message_info(data, JeeNodeDev.fmt_header, fields)
-            # Could send an ack here, but probably best not to
         except TypeError:
             info = { "data" : `data` }
 
-        if self.seen.get(node):
+        if self.add_device(node, data, info):
             return
-        self.seen[node] = True
 
         info["error"] = "unknown device"
         info["why"] = info.get("device", "message received")
@@ -91,11 +112,11 @@ runners.append(monitor)
 # construct the devices from config
 gateway = Gateway(dev_id=31, node="gateway", network=jeenet, broker=broker, verbose=verbose)
 
-triac = Triac(dev_id=4, node="kettle", network=jeenet, broker=broker) # real power switch
+#triac = Triac(dev_id=4, node="kettle", network=jeenet, broker=broker) # real power switch
 #pir = PirSensor(dev_id=3, node="PIR", network=jeenet, broker=broker)
 
 #Triac(dev_id=2, node="triac", network=jeenet, broker=broker)
-#PirSensor(dev_id=2, node="test_pir", network=jeenet, broker=broker)
+#PirSensor(dev_id=1, node="test_pir", network=jeenet, broker=broker)
 
 # open the networks
 jeenet.open()

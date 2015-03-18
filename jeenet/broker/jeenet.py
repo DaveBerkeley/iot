@@ -229,8 +229,8 @@ class Monitor(Device):
 
         while not self.killed:
 
-            if len(self.make_waits()) != len(waits):
-                raise Exception("doesn't handle added items yet")
+            #if len(self.make_waits()) != len(waits):
+            #    raise Exception("doesn't handle added items yet")
 
             waits.sort()
             top = waits[0]
