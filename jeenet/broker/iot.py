@@ -3,7 +3,7 @@
 
 import time
 import httplib
-import urllib
+from urllib import quote
 
 from core import Reader, log, get_device
 
@@ -29,7 +29,7 @@ class IoT(Reader):
         args = []
         d["subtopic"] = "jeenet/" + node
         for key, value in d.items():
-            args.append("%s=%s" % (key, value))
+            args.append("%s=%s" % (quote(key), quote(str(value))))
         get = "/wiki/iot.cgp?" + "&".join(args)
         http = httplib.HTTPConnection(self.server)
         http.request("GET", get)
