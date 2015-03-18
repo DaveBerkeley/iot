@@ -69,7 +69,7 @@ class CosmWriter:
 
 def get_name(topic):
     parts = topic.split("/")
-    idxs = [ "PIR", "kettle", "gateway", "triac" ]
+    idxs = [ "pir_1", "triac_4", "gateway", ]
     for i, name in enumerate(idxs):
         if name == parts[-1]:
             return i, name
@@ -105,16 +105,12 @@ def on_msg(x):
 #
 #
 
-runners = []
-
 cosm = CosmWriter(feed, key)
 
 mqtt = broker.Broker("xively", server="mosquitto")
 mqtt.subscribe("home/jeenet/#", on_msg)
-runners.append(mqtt)
 
-for run in runners:
-    run.start()
+mqtt.start()
 
 while True:
     try:
@@ -123,9 +119,7 @@ while True:
         log("irq")
         break
 
-for run in runners:
-    run.stop()
-for run in runners:
-    run.join()
+mqtt.stop()
+mqtt.join()
 
 # FIN
