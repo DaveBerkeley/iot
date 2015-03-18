@@ -16,12 +16,7 @@ class IoT(Reader):
         Reader.__init__(self, *args, **kwargs)
 
     def forward(self, dev):
-        def send():
-            def tx(node, data):
-                self.report(node, data)
-            return tx
-
-        self.broker.register(dev, send())
+        self.broker.register(dev, self.report)
 
     def report(self, node, data):
         log("Iot", node, data)

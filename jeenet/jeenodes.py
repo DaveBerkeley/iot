@@ -42,10 +42,10 @@ class UnknownHandler:
         if not dev in known_devices:
             return False
 
+        print "Added"
         klass = known_devices[dev]
         name = "%s_%d" % (klass.__name__, node)
         d = klass(dev_id=node, node=name, network=self.network, broker=self.broker)
-        print dir(klass)
         d.description = dev
         self.network.register(node, d.on_net)
         d.on_net(node, data)
@@ -103,20 +103,12 @@ runners.append(iot)
 for dev in [ "kettle", "PIR", "gateway" ]:
     iot.forward(dev)
 
-#
-#
-
+# Monitor handles pinging any nodes and monitoring if they are down
 monitor = Monitor(node="monitor", broker=broker, period=10, dead_time=20)
 runners.append(monitor)
 
-# construct the devices from config
+# construct the gateway device
 gateway = Gateway(dev_id=31, node="gateway", network=jeenet, broker=broker, verbose=verbose)
-
-#triac = Triac(dev_id=4, node="kettle", network=jeenet, broker=broker) # real power switch
-#pir = PirSensor(dev_id=3, node="PIR", network=jeenet, broker=broker)
-
-#Triac(dev_id=2, node="triac", network=jeenet, broker=broker)
-#PirSensor(dev_id=1, node="test_pir", network=jeenet, broker=broker)
 
 # open the networks
 jeenet.open()
