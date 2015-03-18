@@ -20,24 +20,24 @@ class Broker:
         self.client = paho.Client(client_id)
         self.client.connect(self.server)
 
-        def on_message(x):
-            handler = self.subscribes.get(x.topic)
+        def on_message(client, x, msg):
+            handler = self.subscribes.get(msg.topic)
             if handler:
-                handler(x)
+                handler(msg)
                 return
             handlers = []
             for name, handler in self.subscribes.items():
                 if not name.endswith("#"):
                     continue
                 idx = name.find("#")
-                if name[:idx] == x.topic[:idx]:
+                if name[:idx] == msg.topic[:idx]:
                     handlers.append(handler)
 
             if not handlers:
-                print "no handler for", str(x.topic), str(x.payload)
+                print "no handler for", str(msg.topic), str(msg.payload)
             else:
                 for handler in handlers:
-                    handler(x)
+                    handler(msg)
 
         self.client.on_message = on_message
 
