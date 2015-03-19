@@ -2,6 +2,6 @@
 
 ./kill.sh jeenodes.py
 
-python -u ./jeenodes.py >/var/log/homeauto/jeenodes.log 2>&1 &
+python -u ./jeenodes.py >/tmp/jeenodes.log 2>&1 &
 
 # FIN
