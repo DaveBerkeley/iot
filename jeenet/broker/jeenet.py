@@ -2,7 +2,7 @@
 import struct
 import time
 import serial
-from threading import Event
+from threading import Event, Lock
 
 from core import Reader, Device, log, Message
 import bencode
@@ -207,6 +207,7 @@ class Monitor(Device):
         self.dead_time = kwargs["dead_time"]
         self.event = Event()
         self.waits = []
+        self.lock = Lock()
 
     def poll_device(self, device):
         if not hasattr(device, "hello"):
@@ -231,21 +232,27 @@ class Monitor(Device):
         return waits
 
     def on_new_device(self, node, device):
-        print "on new", node, device
+        log("monitor: on new", node)
         wait_info = self.make_wait(time.time(), device)
         if wait_info is None:
             return
-        print "adding wait", wait_info
+        log("monitor: adding wait", wait_info[1], "s")
+        self.lock.acquire()
         self.waits.append(wait_info)
+        self.lock.release()
         self.event.set() # wake up the loop
 
     def run(self):
+        self.lock.acquire()
         self.waits = self.make_waits()
+        self.lock.release()
 
         while not self.killed:
 
+            self.lock.acquire()
             self.waits.sort()
             top = self.waits[0]
+            self.lock.release()
 
             next_time, period, device = top
             diff = next_time - time.time()
