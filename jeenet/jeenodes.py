@@ -109,6 +109,7 @@ def report_to_iot(node, dev):
     iot.forward(dev.node)
 
 on_new_device(report_to_iot)
+on_new_device(monitor.on_new_device)
 
 # construct the gateway device
 gateway = Gateway(dev_id=31, node="gateway", network=jeenet, broker=broker, verbose=verbose)

@@ -218,7 +218,7 @@ class Monitor(Device):
         period = device.get_poll_period()
         if period:
             next_time = now + period
-            return [ next_time, period, device ])
+            return [ next_time, period, device ]
         return None
 
     def make_waits(self):
@@ -230,20 +230,22 @@ class Monitor(Device):
                 waits.append(w)
         return waits
 
-    def add_device(self):
-        pass # TODO
+    def on_new_device(self, node, device):
+        print "on new", node, device
+        wait_info = self.make_wait(time.time(), device)
+        if wait_info is None:
+            return
+        print "adding wait", wait_info
+        self.waits.append(wait_info)
+        self.event.set() # wake up the loop
 
     def run(self):
-        waits = self.make_waits()
+        self.waits = self.make_waits()
 
         while not self.killed:
 
-            if len(self.make_waits()) != len(waits):
-                self.add_device()
-                #raise Exception("doesn't handle added items yet")
-
-            waits.sort()
-            top = waits[0]
+            self.waits.sort()
+            top = self.waits[0]
 
             next_time, period, device = top
             diff = next_time - time.time()
