@@ -214,23 +214,33 @@ class Monitor(Device):
         log("hello", device.node)
         device.hello(device.ack_flag)
 
+    def make_wait(self, now, device):
+        period = device.get_poll_period()
+        if period:
+            next_time = now + period
+            return [ next_time, period, device ])
+        return None
+
     def make_waits(self):
         waits = []
         now = time.time()
         for node, device in devices.items():
-            period = device.get_poll_period()
-            if period:
-                next_time = now + period
-                waits.append([ next_time, period, device ])
+            w = self.make_wait(now, device)
+            if w:
+                waits.append(w)
         return waits
+
+    def add_device(self):
+        pass # TODO
 
     def run(self):
         waits = self.make_waits()
 
         while not self.killed:
 
-            #if len(self.make_waits()) != len(waits):
-            #    raise Exception("doesn't handle added items yet")
+            if len(self.make_waits()) != len(waits):
+                self.add_device()
+                #raise Exception("doesn't handle added items yet")
 
             waits.sort()
             top = waits[0]
