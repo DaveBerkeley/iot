@@ -5,7 +5,7 @@ import json
 
 import serial
 
-import mosquitto
+import paho.mqtt.client as paho
 
 #
 #
@@ -50,9 +50,9 @@ commands = {
     "toggle" : toggle,
 }
 
-def on_message(x):
-    data = json.loads(x.payload)
-    print x.topic, data
+def on_message(client, x, msg):
+    data = json.loads(msg.payload)
+    print msg.topic, data
     cmd = data["cmd"]
     fn = commands[cmd]
     fn(data["dev"], *data["args"])
@@ -62,7 +62,7 @@ def on_message(x):
 
 s = serial.Serial("/dev/relays", baudrate=9600, timeout=1, rtscts=True)
 
-mqtt = mosquitto.Mosquitto("relays")
+mqtt = paho.Client("relays")
 mqtt.connect("mosquitto")
 
 mqtt.on_message = on_message
