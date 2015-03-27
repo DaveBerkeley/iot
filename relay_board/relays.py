@@ -4,19 +4,33 @@ import time
 
 import serial
 
-s = serial.Serial("/dev/relays", baudrate=57600, timeout=1)
-
-time.sleep(2) # settle
+#
+#
 
 def cmd(dev, state, txt):
+    print `txt`
     s.write(txt)
     # get echo
     for c in txt:
-        assert s.read() == c
+        x = s.read()
+        assert x == c, str(x)
     # get status
     txt = "R%d=%d\r\n" % (dev, state)
     for c in txt:
-        assert s.read() == c
+        x = s.read()
+        assert x == c, str(x)
+
+#
+#
+
+s = serial.Serial("/dev/relays", baudrate=57600, timeout=1, rtscts=True)
+
+time.sleep(3) # settle
+
+print "start..."
+
+#
+#
 
 for i in range(4):
     txt = "R%d=P%d\n" % (i, (i + 1) * 1000)
