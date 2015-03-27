@@ -62,16 +62,7 @@ def on_message(client, x, msg):
 
 s = serial.Serial("/dev/relays", baudrate=9600, timeout=1, rtscts=True)
 
-mqtt = paho.Client("relays")
-mqtt.connect("mosquitto")
-
-mqtt.on_message = on_message
-mqtt.subscribe("home/relay")
-
 time.sleep(3) # settle
-
-#for i in range(4):
-#    s.write("P%d=?\n" % i)
 
 # flush input
 while True:
@@ -80,6 +71,12 @@ while True:
         break
     print `c`
     time.sleep(0.5)
+
+mqtt = paho.Client("relays")
+mqtt.connect("mosquitto")
+
+mqtt.on_message = on_message
+mqtt.subscribe("home/relay")
 
 #
 #
