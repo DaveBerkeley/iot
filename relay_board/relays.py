@@ -16,11 +16,13 @@ def cmd(dev, state, txt):
     # get echo
     for c in txt:
         x = s.read()
+        #print `x`, `c`
         assert x == c, str(x)
     # get status
     txt = "R%d=%d\r\n" % (dev, state)
     for c in txt:
         x = s.read()
+        #print `x`, `c`
         assert x == c, str(x)
 
 def set(dev, state, expected=None):
@@ -58,7 +60,7 @@ def on_message(x):
 #
 #
 
-s = serial.Serial("/dev/relays", baudrate=57600, timeout=1, rtscts=True)
+s = serial.Serial("/dev/relays", baudrate=9600, timeout=1, rtscts=True)
 
 mqtt = mosquitto.Mosquitto("relays")
 mqtt.connect("mosquitto")
@@ -68,8 +70,23 @@ mqtt.subscribe("home/relay")
 
 time.sleep(3) # settle
 
+#for i in range(4):
+#    s.write("P%d=?\n" % i)
+
+# flush input
+while True:
+    c = s.read()
+    if not c:
+        break
+    print `c`
+    time.sleep(0.5)
+
 #
 #
+
+
+
+print "start MQTT server"
 
 while True:
     try:
