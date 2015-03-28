@@ -5,6 +5,7 @@ import json
 
 import serial
 
+# https://pypi.python.org/pypi/paho-mqtt
 import paho.mqtt.client as paho
 
 #
@@ -19,10 +20,13 @@ def cmd(dev, state, txt):
         #print `x`, `c`
         assert x == c, str(x)
     # get status
-    txt = "R%d=%d\r\n" % (dev, state)
+    txt = "R%d=%s\r\n" % (dev, state)
     for c in txt:
         x = s.read()
         #print `x`, `c`
+        # special case for toggle
+        if c == 'X':
+            x = c
         assert x == c, str(x)
 
 def set(dev, state, expected=None):
@@ -31,64 +35,62 @@ def set(dev, state, expected=None):
         ex = state
     cmd(dev, ex, "R%d=%s\n" % (dev, state))
 
-def on(dev):
+def on(dev, *args):
     set(dev, 1)
 
-def off(dev):
+def off(dev, *args):
     set(dev, 0)
 
-def toggle(dev):
-    set(dev, 'T', expected=1)
+def toggle(dev, *args):
+    set(dev, 'T', expected='X')
 
 def pulse(dev, period):
     set(dev, 'P' + str(period), expected=1)
 
 commands = {
-    "pulse" : pulse,
-    "on" : on,
-    "off" : off,
-    "toggle" : toggle,
+    "pulse"     : pulse,
+    "on"        : on,
+    "off"       : off,
+    "toggle"    : toggle,
 }
 
-def on_message(client, x, msg):
+def on_mqtt(client, x, msg):
     data = json.loads(msg.payload)
     print msg.topic, data
     cmd = data["cmd"]
     fn = commands[cmd]
-    fn(data["dev"], *data["args"])
+    args = data.get("args", [])
+    fn(data["dev"], *args)
 
 #
 #
 
-s = serial.Serial("/dev/relays", baudrate=9600, timeout=1, rtscts=True)
+if __name__ == "__main__":
 
-time.sleep(3) # settle
+    s = serial.Serial("/dev/relays", baudrate=9600, timeout=1, rtscts=True)
 
-# flush input
-while True:
-    c = s.read()
-    if not c:
-        break
-    print `c`
-    time.sleep(0.5)
+    time.sleep(3) # settle
 
-mqtt = paho.Client("relays")
-mqtt.connect("mosquitto")
+    # flush input
+    while True:
+        c = s.read()
+        if not c:
+            break
+        print `c`
+        time.sleep(0.5)
 
-mqtt.on_message = on_message
-mqtt.subscribe("home/relay")
+    mqtt = paho.Client("relays")
+    mqtt.connect("mosquitto")
 
-#
-#
+    mqtt.on_message = on_mqtt
+    mqtt.subscribe("home/relay")
 
+    print "start MQTT server"
 
-
-print "start MQTT server"
-
-while True:
-    try:
-        mqtt.loop()
-    except KeyboardInterrupt:
-        break
+    while True:
+        try:
+            mqtt.loop()
+        except KeyboardInterrupt:
+            break
 
 # FIN
