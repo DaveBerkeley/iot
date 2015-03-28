@@ -47,6 +47,9 @@ def toggle(dev, *args):
 def pulse(dev, period):
     set(dev, 'P' + str(period), expected=1)
 
+#   Command LUT
+#
+
 commands = {
     "pulse"     : pulse,
     "on"        : on,
@@ -54,19 +57,35 @@ commands = {
     "toggle"    : toggle,
 }
 
+#   MQTT on_message callback
+#
+
+dead = False
+
 def on_mqtt(client, x, msg):
     data = json.loads(msg.payload)
     print msg.topic, data
     cmd = data["cmd"]
     fn = commands[cmd]
     args = data.get("args", [])
-    fn(data["dev"], *args)
+    try:
+        fn(data["dev"], *args)
+    except serial.serialutil.SerialException, ex:
+        # shut down the serial port and reconnect
+        print str(ex)
+        time.sleep(1)
+        global s
+        s = init_serial()
+    except KeyboardInterrupt, ex:
+        print str(ex)
+        global dead
+        dead = True
 
 #
 #
 
-if __name__ == "__main__":
-
+def init_serial():
+    print "open serial .."
     s = serial.Serial("/dev/relays", baudrate=9600, timeout=1, rtscts=True)
 
     time.sleep(3) # settle
@@ -79,6 +98,16 @@ if __name__ == "__main__":
         print `c`
         time.sleep(0.5)
 
+    print "serial opened"
+    return s
+
+#
+#
+
+if __name__ == "__main__":
+
+    s = init_serial()
+
     mqtt = paho.Client("relays")
     mqtt.connect("mosquitto")
 
@@ -87,7 +116,7 @@ if __name__ == "__main__":
 
     print "start MQTT server"
 
-    while True:
+    while not dead:
         try:
             mqtt.loop()
         except KeyboardInterrupt:
