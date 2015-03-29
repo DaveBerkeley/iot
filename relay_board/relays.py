@@ -3,6 +3,7 @@
 import time
 import json
 
+# http://pyserial.sourceforge.net/
 import serial
 
 # https://pypi.python.org/pypi/paho-mqtt
@@ -12,18 +13,16 @@ import paho.mqtt.client as paho
 #
 
 def cmd(dev, state, txt):
-    print `txt`
+    #print `txt`
     s.write(txt)
     # get echo
     for c in txt:
         x = s.read()
-        #print `x`, `c`
         assert x == c, str(x)
     # get status
     txt = "R%d=%s\r\n" % (dev, state)
     for c in txt:
         x = s.read()
-        #print `x`, `c`
         # special case for toggle
         if c == 'X':
             x = c
@@ -63,19 +62,20 @@ commands = {
 dead = False
 
 def on_mqtt(client, x, msg):
-    data = json.loads(msg.payload)
-    print msg.topic, data
-    cmd = data["cmd"]
-    fn = commands[cmd]
-    args = data.get("args", [])
+    global s
     try:
+        if s is None:
+            s = init_serial()
+        data = json.loads(msg.payload)
+        print msg.topic, data
+        cmd = data["cmd"]
+        fn = commands[cmd]
+        args = data.get("args", [])
         fn(data["dev"], *args)
     except serial.serialutil.SerialException, ex:
         # shut down the serial port and reconnect
         print str(ex)
-        time.sleep(1)
-        global s
-        s = init_serial()
+        s = None
     except KeyboardInterrupt, ex:
         print str(ex)
         global dead
@@ -86,7 +86,7 @@ def on_mqtt(client, x, msg):
 
 def init_serial():
     print "open serial .."
-    s = serial.Serial("/dev/relays", baudrate=9600, timeout=1, rtscts=True)
+    s = serial.Serial(serial_dev, baudrate=9600, timeout=1, rtscts=True)
 
     time.sleep(3) # settle
 
@@ -103,6 +103,9 @@ def init_serial():
 
 #
 #
+
+s = None # serial port
+serial_dev = "/dev/relays"
 
 if __name__ == "__main__":
 
