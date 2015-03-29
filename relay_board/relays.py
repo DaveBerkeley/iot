@@ -59,8 +59,6 @@ commands = {
 #   MQTT on_message callback
 #
 
-dead = False
-
 def on_mqtt(client, x, msg):
     global s
     try:
@@ -76,10 +74,6 @@ def on_mqtt(client, x, msg):
         # shut down the serial port and reconnect
         print str(ex)
         s = None
-    except KeyboardInterrupt, ex:
-        print str(ex)
-        global dead
-        dead = True
 
 #
 #
@@ -119,10 +113,6 @@ if __name__ == "__main__":
 
     print "start MQTT server"
 
-    while not dead:
-        try:
-            mqtt.loop()
-        except KeyboardInterrupt:
-            break
+    mqtt.loop_forever()
 
 # FIN
