@@ -70,7 +70,7 @@ def on_mqtt(client, x, msg):
         fn = commands[cmd]
         args = data.get("args", [])
         fn(data["dev"], *args)
-    except serial.serialutil.SerialException, ex:
+    except (serial.serialutil.SerialException, OSError), ex:
         # shut down the serial port and reconnect
         print str(ex)
         s = None
