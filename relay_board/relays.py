@@ -1,5 +1,6 @@
 #!/usr/bin/python -u
 
+import os
 import time
 import json
 
@@ -99,7 +100,16 @@ def init_serial():
 #
 
 s = None # serial port
-serial_dev = "/dev/relays"
+
+names = [
+    "/dev/relays",
+    "/dev/ttyACM0",
+    "/dev/ttyUSB0",
+]
+
+for serial_dev in names:
+    if os.path.exists(serial_dev):
+        break
 
 if __name__ == "__main__":
 
