@@ -21,12 +21,12 @@ def set_power(p):
     meter.set_power(p)
 
 def auto(burn):
-    import mosquitto
+    import paho.mqtt.client as paho    
 
-    mqtt = mosquitto.Mosquitto("me")
+    mqtt = paho.Client("me")
     mqtt.connect("mosquitto")
 
-    def on_message(x):
+    def on_message(a, b, x):
         data = json.loads(x.payload)
         print x.topic, data
         if x.topic == "home/power":
