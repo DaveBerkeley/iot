@@ -53,11 +53,15 @@ def toggle(dev, *args):
 def pulse(dev, period):
     set(dev, 'P' + str(period), expected=1)
 
+def npulse(dev, period):
+    set(dev, 'N' + str(period), expected=0)
+
 #   Command LUT
 #
 
 commands = {
     "pulse"     : pulse,
+    "npulse"    : npulse,
     "on"        : on,
     "off"       : off,
     "toggle"    : toggle,
