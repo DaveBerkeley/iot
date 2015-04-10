@@ -11,7 +11,7 @@ import serial
 import paho.mqtt.client as paho
 
 def log(*args):
-    print time.ctime(), 
+    print time.strftime("%y/%m/%d %H:%M:%S :"), 
     for arg in args:
         print arg,
     print
@@ -86,7 +86,7 @@ def on_mqtt(client, x, msg):
 #
 
 def init_serial():
-    log("open serial ..")
+    log("open serial '%s'" % serial_dev)
     s = serial.Serial(serial_dev, baudrate=9600, timeout=1, rtscts=True)
 
     time.sleep(3) # settle
