@@ -1,5 +1,6 @@
 #!/usr/bin/python -u
 
+import os
 import time
 import json
 
@@ -8,6 +9,12 @@ import serial
 
 # https://pypi.python.org/pypi/paho-mqtt
 import paho.mqtt.client as paho
+
+def log(*args):
+    print time.strftime("%y/%m/%d %H:%M:%S :"), 
+    for arg in args:
+        print arg,
+    print
 
 #
 #
@@ -46,11 +53,15 @@ def toggle(dev, *args):
 def pulse(dev, period):
     set(dev, 'P' + str(period), expected=1)
 
+def npulse(dev, period):
+    set(dev, 'N' + str(period), expected=0)
+
 #   Command LUT
 #
 
 commands = {
     "pulse"     : pulse,
+    "npulse"    : npulse,
     "on"        : on,
     "off"       : off,
     "toggle"    : toggle,
@@ -65,21 +76,21 @@ def on_mqtt(client, x, msg):
         if s is None:
             s = init_serial()
         data = json.loads(msg.payload)
-        print msg.topic, data
+        log(msg.topic, data)
         cmd = data["cmd"]
         fn = commands[cmd]
         args = data.get("args", [])
         fn(data["dev"], *args)
     except (serial.serialutil.SerialException, OSError), ex:
         # shut down the serial port and reconnect
-        print str(ex)
+        log(str(ex))
         s = None
 
 #
 #
 
 def init_serial():
-    print "open serial .."
+    log("open serial '%s'" % serial_dev)
     s = serial.Serial(serial_dev, baudrate=9600, timeout=1, rtscts=True)
 
     time.sleep(3) # settle
@@ -89,17 +100,26 @@ def init_serial():
         c = s.read()
         if not c:
             break
-        print `c`
+        log(`c`)
         time.sleep(0.5)
 
-    print "serial opened"
+    log("serial opened")
     return s
 
 #
 #
 
 s = None # serial port
-serial_dev = "/dev/relays"
+
+names = [
+    "/dev/relays",
+    "/dev/ttyACM0",
+    "/dev/ttyUSB0",
+]
+
+for serial_dev in names:
+    if os.path.exists(serial_dev):
+        break
 
 if __name__ == "__main__":
 
@@ -111,7 +131,7 @@ if __name__ == "__main__":
     mqtt.on_message = on_mqtt
     mqtt.subscribe("home/relay")
 
-    print "start MQTT server"
+    log("start MQTT server")
 
     mqtt.loop_forever()
 
