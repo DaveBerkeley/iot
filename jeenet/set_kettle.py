@@ -26,16 +26,22 @@ def auto(burn):
     mqtt = paho.Client("me")
     mqtt.connect("mosquitto")
 
+    dead = False
+
     def on_message(a, b, x):
-        data = json.loads(x.payload)
-        print x.topic, data
-        if x.topic == "home/power":
-            if data["power"] > burn:
-                if meter.power > 0:
-                    set_power(meter.power - 1)
-            else:
-                if meter.power < 100:
-                    set_power(meter.power + 1)
+        try:
+            data = json.loads(x.payload)
+            print x.topic, data
+            if x.topic == "home/power":
+                if data["power"] > burn:
+                    if meter.power > 0:
+                        set_power(meter.power - 1)
+                else:
+                    if meter.power < 100:
+                        set_power(meter.power + 1)
+        except Exception, ex:
+            print str(ex)
+            dead = True
 
     mqtt.on_message = on_message
     mqtt.subscribe("home/jeenet/kettle")
@@ -44,7 +50,7 @@ def auto(burn):
 
     set_power(0)
 
-    while True:
+    while not dead:
         try:
             mqtt.loop()
         except KeyboardInterrupt:
