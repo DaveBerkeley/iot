@@ -80,7 +80,18 @@ def get_name(topic):
 
 last_send = {}
 
-def on_msg(x):
+def tx_info(name, info):
+    now = time.time()
+    last_sent = last_send.get(name)
+    if last_sent != None:
+        if (last_sent + 60) > now:
+            return
+
+    log("COSM PUT", name, info)
+    cosm.put(info)
+    last_send[name] = now
+
+def on_jeenet_msg(x):
     data = json.loads(x.payload)
     #log(data)
 
@@ -90,17 +101,21 @@ def on_msg(x):
     idx, name = get_name(x.topic)
     if name is None:
         return
-
-    now = time.time()
-    last_sent = last_send.get(name)
-    if last_sent != None:
-        if (last_sent + 60) > now:
-            return
-
     info = ( ( str(idx), data["temp"], ), )
-    log("COSM PUT", name, info)
-    cosm.put(info)
-    last_send[name] = now
+    tx_info(name, info)
+
+def on_net_msg(x):
+    data = json.loads(x.payload)
+
+    info = []
+    if data.get("host") == "klatu":
+        t0 = data.get("temp_0")
+        t1 = data.get("temp_1")
+        if (t0 is None) or (t1 is None):
+            return
+        info.append(( str("klatu_0"), t0 ))
+        info.append(( str("klatu_1"), t1 ))
+        tx_info("klatu_temp", info)
 
 #
 #
@@ -108,7 +123,8 @@ def on_msg(x):
 cosm = CosmWriter(feed, key)
 
 mqtt = broker.Broker("xively", server="mosquitto")
-mqtt.subscribe("home/jeenet/#", on_msg)
+mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
+mqtt.subscribe("home/net/#", on_net_msg)
 
 mqtt.start()
 
