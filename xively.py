@@ -69,7 +69,7 @@ class CosmWriter:
 
 def get_name(topic):
     parts = topic.split("/")
-    idxs = [ "pir_1", "triac_4", "gateway", ]
+    idxs = [ "pir_1", "triac_4", "gateway", "testdev_1" ]
     for i, name in enumerate(idxs):
         if name == parts[-1]:
             return i, name
