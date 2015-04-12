@@ -19,10 +19,18 @@ from devices.triac import Triac
 verbose = True
 
 #
+#
+
+class TestDev(PirSensor):
+
+    def get_poll_period(self):
+        return 60.0
+
+#
 #   Known device types
 
 known_devices = {
-    "Test Device v1.0" : PirSensor, # TODO
+    "Test Device v1.0" : TestDev, # TODO
     "Triac Control v1.0" : Triac,
     "PIR Device v1.0" : PirSensor,
 }
