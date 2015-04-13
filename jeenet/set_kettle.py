@@ -40,15 +40,15 @@ class PID:
 
     def tick(self, d):
         error = self.setpoint - d
-        p = (self.p * error) + (self.i * self.sum_error)
+        p = (self.p * error) + self.sum_error
         print d, error, p, self.sum_error
         self.setter(p)
-        self.sum_error += error
+        self.sum_error = ((1 - self.i) * self.sum_error) + (self.i * error)
 
 #
 #
 
-pid = PID(0.05, 0.01, setpoint=-10, setter=set_power)
+pid = PID(0.01, 0.01, setpoint=-10, setter=set_power)
 
 def auto():
     import paho.mqtt.client as paho    
