@@ -24,7 +24,7 @@ verbose = True
 class TestDev(PirSensor):
 
     def get_poll_period(self):
-        return 60.0
+        return None
 
 #
 #   Known device types
