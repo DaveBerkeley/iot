@@ -125,13 +125,14 @@ if __name__ == "__main__":
 
     s = init_serial()
 
-    mqtt = paho.Client("relays")
+    name = time.strftime("relays_%Y%m%d%H%M")
+    mqtt = paho.Client(name)
     mqtt.connect("mosquitto")
 
     mqtt.on_message = on_mqtt
     mqtt.subscribe("home/relay")
 
-    log("start MQTT server")
+    log("start MQTT client '%s'" % name)
 
     mqtt.loop_forever()
 
