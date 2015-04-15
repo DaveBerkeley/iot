@@ -131,7 +131,7 @@ if __name__ == "__main__":
     mqtt.on_message = on_mqtt
     mqtt.subscribe("home/relay")
 
-    log("start MQTT server")
+    log("start MQTT client")
 
     mqtt.loop_forever()
 
