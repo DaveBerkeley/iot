@@ -112,11 +112,33 @@ def monitor_handler(path, broker, data):
 #
 #
 
+def syslog_handler(path, broker, data):
+    # 'Apr 15 13:45:07 klatu dnsmasq-dhcp[2578]: DHCPACK(eth0) 192.168.0.139 1c:3e:84:62:5a:b7 chrubuntu'
+    # 
+    parts = data.split(" ")
+
+    if len(parts) != 9:
+        return
+    if parts[5] != "DHCPACK(eth0)":
+        return
+    ip, mac, host = parts[6:]
+
+    d = {
+        "ip" : ip,
+        "mac" : mac,
+        "host" : host,
+    }
+    broker.send("home/net/dhcp", json.dumps(d))
+
+#
+#
+
 iot_dir = "/usr/local/data/iot"
 rivers_dir = "/usr/local/data/rivers"
 power_dir = "/usr/local/data/power"
 solar_dir = "/usr/local/data/solar"
 monitor_dir = "/usr/local/data/monitor"
+syslog_dir = "/var/log/syslog"
 
 handlers = {
     iot_dir : iot_handler,
@@ -124,6 +146,7 @@ handlers = {
     power_dir : power_handler,
     solar_dir : solar_handler,
     monitor_dir : monitor_handler,
+    #syslog_dir : syslog_handler,
 }
 
 paths = handlers.keys()
@@ -178,7 +201,7 @@ class Handler:
         try:
             if event.event_type == "modified":
                 path = event.src_path
-                if path.endswith(".log"):
+                if path.endswith("log"):
                     self.handle_file_change(path)
         except Exception, ex:
             print "Exception", str(ex)
@@ -207,8 +230,11 @@ class Tail:
         self.handler = handler
         # need to kludge global handlers
         # assuming yyyy/mm/dd.log
-        tree = path[:-len("/yyyy/mm/dd.log")]
-        assert handlers.get(tree)
+        if os.path.isdir(path):
+            tree = path[:-len("/yyyy/mm/dd.log")]
+        else:
+            tree = path
+        assert handlers.get(tree), (tree, path)
         handlers[path] = handlers[tree]
 
     def run(self):
@@ -266,7 +292,8 @@ if __name__ == "__main__":
 
     for path in paths:
         print "monitor", path
-        observer.schedule(event_handler, path, recursive=True)
+        isdir = os.path.isdir(path)
+        observer.schedule(event_handler, path, recursive=isdir)
     observer.start()
     try:
         while True:
