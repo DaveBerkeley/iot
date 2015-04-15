@@ -47,12 +47,12 @@ for line in file(path):
 gnuplot = [
     "set xdata time",
     "set format x '%H:%M'",
-    "set timefmt '%H:%MS'",
+    "set timefmt '%H:%M:%S'",
     "set ylabel '%s'" % field,
     "set xlabel 'time'",
     "set xtics rotate by -45",
     "set key off",
-    "plot '%s' using 1:2 with lines smooth bezier" % opath,
+    "plot '%s' using 1:2 with lines, '%s' using 1:2 with points" % (opath, opath),
 ]
 
 if start:
