@@ -9,7 +9,7 @@ import ephem
 from broker import Broker
 
 # add your lat/lon in this config file :
-from solar_config import lat, lon
+from solar_conf import lat, lon
 
 #
 #
