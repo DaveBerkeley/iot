@@ -3,6 +3,7 @@
 import time
 import datetime
 import json
+import math
 
 # https://pypi.python.org/pypi/pyephem
 import ephem
@@ -53,8 +54,10 @@ try:
         d = {
             "time" : str(ephem.Date(now)) + " UTC",
         }
+        def degrees(x):
+            return 180.0 * x / math.pi
         for name in bodies:
-            alt, az = [ float(x) for x in body(name) ]
+            alt, az = [ degrees(x) for x in body(name) ]
             d[name] = { "alt" : alt, "az" : az, }
 
         broker.send(topic, json.dumps(d))
