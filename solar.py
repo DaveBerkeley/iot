@@ -2,6 +2,7 @@
 
 import time
 import datetime
+import json
 
 # https://pypi.python.org/pypi/pyephem
 import ephem
@@ -33,17 +34,35 @@ def body(name):
     obj.compute(observer)
     return obj.alt, obj.az
 
-while True:
-    now = datetime.datetime.now()
-    observer.date = now
-    d = {
-        "time" : now.strftime("%Y/%m/%d %H:%M:%S"),
-    }
-    for name in bodies:
-        alt, az = [ float(x) for x in body(name) ]
-        d[name] = { "alt" : alt, "az" : az, }
-    print d
+topic = "astro"
 
-    time.sleep(60)
+server = "mosquitto"
+print "connect to", server
+broker = Broker("solar", server=server)
+broker.start()
+
+print "Showing:",
+for name in bodies:
+    print name,
+print
+
+try:
+    while True:
+        now = datetime.datetime.utcnow()
+        observer.date = now
+        d = {
+            "time" : str(ephem.Date(now)) + " UTC",
+        }
+        for name in bodies:
+            alt, az = [ float(x) for x in body(name) ]
+            d[name] = { "alt" : alt, "az" : az, }
+
+        broker.send(topic, json.dumps(d))
+
+        time.sleep(60)
+except KeyboardInterrupt:
+    broker.stop()
+
+broker.join()
 
 # FIN
