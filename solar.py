@@ -24,9 +24,9 @@ bodies = [
     "Sun",
     "Moon",
     #"Mercury",
-    #"Venus",
-    #"Mars",
-    #"Jupiter",
+    "Venus",
+    "Mars",
+    "Jupiter",
     #"Saturn",
 ]
 
