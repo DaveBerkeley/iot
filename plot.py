@@ -34,10 +34,11 @@ ofile = open(opath, "w")
 for line in file(path):
     data = json.loads(line)
     if data.get("subtopic") != subtopic:
-        continue
+        if data.get("ipaddr") != subtopic:
+            continue
     if data.get(field) is None:
         continue
-    #keys = sorted(data.keys())
+
     keys = [ "time", field ]
     tt = data["time"]
     ymd, hms = tt.split(" ")
