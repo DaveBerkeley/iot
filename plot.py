@@ -4,6 +4,7 @@ import sys
 import os
 import datetime
 import json
+from subprocess import Popen, PIPE
 
 def hm2s(text):
     h, m = text.split(":")
@@ -63,7 +64,10 @@ if start:
 elif end:
     gnuplot.insert(0, "set xrange[:%s]" % end)
 
+cmd = "gnuplot --persist"
+p = Popen(cmd, shell=True, stdin=PIPE)
+
 for line in gnuplot:
-    print line
+    print >>p.stdin, line
 
 # FIN
