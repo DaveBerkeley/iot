@@ -34,9 +34,11 @@ dt = datetime.datetime(2015, 1, 1, 12)
 end = datetime.datetime(2016, 1, 1)
 day = datetime.timedelta(days=1)
 
-fmt = "%Y/%m/%d %H:%M"
+fmt = "%m %d %H:%M %w"
 
-ofile = open("/tmp/solar.csv", "w")
+path = "/tmp/solar.csv"
+
+ofile = open(path, "w")
 
 while dt < end:
     alt, az = [ degrees(x) for x in s.sun(dt) ]
@@ -48,13 +50,13 @@ args = [
     "set xlabel 'azimuth'",
     "set ylabel 'altitude'",
     "set key off",
-    "plot '/tmp/solar.csv' using 4:3"
+    "plot '%s' using 6:5 with points pt 6, "
+    "'' u (($4==1) ? $6 : 1/0):5:1 with points pt 17" % path,
 ]
 
 cmd = "gnuplot --persist"
 
 p = Popen(cmd, shell=True, stdin=PIPE).stdin
-print p
 
 for arg in args:
     print >> p, arg
