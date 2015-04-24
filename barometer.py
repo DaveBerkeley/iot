@@ -1,8 +1,13 @@
 #!/usr/bin/python
 
 import time
+import urllib2
 
+# http://pyserial.sourceforge.net/
 import serial
+
+serial_dev = "/dev/nano"
+server = "klatu"
 
 #
 #
@@ -16,13 +21,23 @@ def log(*args):
 #
 #
 
-serial_dev = "/dev/nano"
-
 def init_serial():
     log("open serial '%s'" % serial_dev)
     s = serial.Serial(serial_dev, baudrate=9600, timeout=1, rtscts=True)
     log("serial opened")
     return s
+
+#
+#
+
+def get(data):
+    url = "http://%s/wiki/iot.cgp?" % server
+    args = []
+    for key, value in data.items():
+        args.append("%s=%s" % (key, value))
+
+    url += "&".join(args)
+    urllib2.urlopen(url)
 
 #
 #
@@ -33,11 +48,21 @@ while True:
     line = s.readline()
     if not line.endswith("\r\n"):
         continue
-    parts = line.strip().split(",")
-    d = {}
+    try:
+        line = line.strip()
+        parts = line.split(",")
+    except:
+        continue
+    if len(parts) != 8:
+        continue
+
+    d = {
+        "subtopic" : "home/pressure",
+    }
     for i in range(0, len(parts), 2):
         key, value = parts[i:i+2]
         d[key] = value
-    print d
+    log(line)
+    get(d)
 
 # FIN
