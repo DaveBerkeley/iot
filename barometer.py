@@ -57,7 +57,7 @@ while True:
         continue
 
     d = {
-        "subtopic" : "home/pressure",
+        "subtopic" : "pressure",
     }
     for i in range(0, len(parts), 2):
         key, value = parts[i:i+2]

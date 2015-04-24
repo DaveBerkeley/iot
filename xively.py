@@ -117,6 +117,14 @@ def on_net_msg(x):
         info.append(( str("klatu_1"), t1 ))
         tx_info("klatu_temp", info)
 
+def on_pressure_msg(x):
+    data = json.loads(x.payload)
+    info = ( 
+        ( "pressure", data["p"], ), 
+        ( "sea", data["sea"], ), 
+    )
+    tx_info("pressure", info)
+
 #
 #
 
@@ -125,6 +133,7 @@ cosm = CosmWriter(feed, key)
 mqtt = broker.Broker("xively", server="mosquitto")
 mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
 mqtt.subscribe("home/net/#", on_net_msg)
+mqtt.subscribe("home/pressure", on_pressure_msg)
 
 mqtt.start()
 
