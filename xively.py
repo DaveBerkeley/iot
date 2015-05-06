@@ -125,6 +125,21 @@ def on_pressure_msg(x):
     )
     tx_info("pressure", info)
 
+def on_home_msg(x):
+    data = json.loads(x.payload)
+    # TODO : make this smarter!
+    d = {
+        # Map ipaddr to xively channel
+        "192.168.0.104" : "pir_04",
+        "192.168.0.105" : "pir_05",
+    }
+    ip = data.get("ipaddr")
+    field = d.get(ip, "none")
+    info = ( 
+        ( field, data["temp"], ), 
+    )
+    tx_info("home", info)
+
 #
 #
 
@@ -134,6 +149,7 @@ mqtt = broker.Broker("xively", server="mosquitto")
 mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
 mqtt.subscribe("home/net/#", on_net_msg)
 mqtt.subscribe("home/pressure", on_pressure_msg)
+mqtt.subscribe("home", on_home_msg)
 
 mqtt.start()
 
