@@ -1,15 +1,11 @@
--- Measure temperature and post data to thingspeak.com
--- 2014 OK1CDJ
---- Tem sensor DS18B20 is conntected to GPIO0
---- 2015.01.21 sza2 temperature value concatenation bug correction
 
+-- Measure temperature
+-- 2014 OK1CDJ
 --- see https://github.com/ok1cdj
 
-pin = 5
-ow.setup(pin)
+temperature_pin = 5 -- GPIO14
 
-counter=0
-lasttemp=-999
+ow.setup(temperature_pin)
 
 function bxor(a,b)
    local r = 0
@@ -24,8 +20,8 @@ function bxor(a,b)
 end
 
 --- Get temperature from DS18B20 
-function getTemp(pin)
-    addr = ow.reset_search(pin)
+function getTemp(temperature_pin)
+    addr = ow.reset_search(temperature_pin)
     repeat
         tmr.wdclr()
 
@@ -33,17 +29,17 @@ function getTemp(pin)
             crc = ow.crc8(string.sub(addr,1,7))
             if (crc == addr:byte(8)) then
                 if ((addr:byte(1) == 0x10) or (addr:byte(1) == 0x28)) then
-                    ow.reset(pin)
-                    ow.select(pin, addr)
-                    ow.write(pin, 0x44, 1)
+                    ow.reset(temperature_pin)
+                    ow.select(temperature_pin, addr)
+                    ow.write(temperature_pin, 0x44, 1)
                     tmr.delay(1000000)
-                    present = ow.reset(pin)
-                    ow.select(pin, addr)
-                    ow.write(pin,0xBE, 1)
+                    present = ow.reset(temperature_pin)
+                    ow.select(temperature_pin, addr)
+                    ow.write(temperature_pin,0xBE, 1)
                     data = nil
-                    data = string.char(ow.read(pin))
+                    data = string.char(ow.read(temperature_pin))
                     for i = 1, 8 do
-                        data = data .. string.char(ow.read(pin))
+                        data = data .. string.char(ow.read(temperature_pin))
                     end
                     crc = ow.crc8(string.sub(data,1,8))
                     if (crc == data:byte(9)) then
@@ -53,17 +49,22 @@ function getTemp(pin)
                             t = (-1) * t
                         end
                         t = t * 625
-                        lasttemp = t
-                        print("Last temp: " .. (lasttemp / 10000.0))
+                        return t
+                        -- print("" .. (t / 10000.0) .. " C")
                     end                   
                     tmr.wdclr()
                 end
             end
         end
-        addr = ow.search(pin)
+        addr = ow.search(temperature_pin)
     until(addr == nil)
 end
 
--- send data every X ms to thing speak
-tmr.alarm(0, 1000, 1, function() getTemp(pin) end )
+function txTemp()
+    t = getTemp(temperature_pin)
+    tx("wiki/iot.cgp?temp=" .. (t / 10000.0))
+end
+
+-- send data every X ms
+tmr.alarm(0, 60000, 1, function() txTemp() end )
 
