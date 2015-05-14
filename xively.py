@@ -4,6 +4,7 @@ import time
 import datetime
 import json
 import httplib
+import socket
 from threading import Lock
 
 import broker
@@ -128,13 +129,14 @@ def on_pressure_msg(x):
 def on_home_msg(x):
     data = json.loads(x.payload)
     # TODO : make this smarter!
-    d = {
-        # Map ipaddr to xively channel
-        "192.168.0.104" : "pir_04",
-        "192.168.0.105" : "pir_05",
-    }
     ip = data.get("ipaddr")
-    field = d.get(ip, "none")
+    # get the final octet of the ip address
+    raw = socket.inet_aton(ip)
+    end = ord(raw[4])
+    # move eg. 192.168.0.105 to 05
+    if end > 100:
+        end -= 100
+    field = "pir_%02d" % end
     info = ( 
         ( field, data["temp"], ), 
     )
