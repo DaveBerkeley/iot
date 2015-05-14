@@ -132,7 +132,7 @@ def on_home_msg(x):
     ip = data.get("ipaddr")
     # get the final octet of the ip address
     raw = socket.inet_aton(ip)
-    end = ord(raw[4])
+    end = ord(raw[3])
     # move eg. 192.168.0.105 to 05
     if end > 100:
         end -= 100
