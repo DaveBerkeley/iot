@@ -8,6 +8,15 @@ import jsonrpclib
 
 from broker.core import DeviceProxy
 
+#
+#
+
+def log(t, *args, **kwargs):
+    print t,
+    for arg in kwargs:
+        print arg,
+    print
+
 host = "rpi"
 server = jsonrpclib.Server('http://%s:8888' % host)
 
@@ -17,7 +26,7 @@ meter = DeviceProxy(server, "triac_4")
 
 def set_power(p):
     p = int(p)
-    print "set", p
+    log("set", p)
     if p > 100:
         p = 100
     elif p < 0:
@@ -41,7 +50,7 @@ class PID:
     def tick(self, d):
         error = self.setpoint - d
         p = (self.p * error) + self.sum_error
-        print d, error, p, self.sum_error
+        log(d, error, p, self.sum_error)
         self.setter(p)
         self.sum_error = ((1 - self.i) * self.sum_error) + (self.i * error)
 
@@ -61,11 +70,11 @@ def auto():
     def on_message(a, b, x):
         try:
             data = json.loads(x.payload)
-            print x.topic, data
+            log(x.topic, data)
             if x.topic == "home/power":
                 pid.tick(data["power"])
         except Exception, ex:
-            print str(ex)
+            log(str(ex))
             dead = True
 
     mqtt.on_message = on_message
@@ -85,10 +94,11 @@ def auto():
 #
 #
 
-if sys.argv[1] == "auto":
-    auto()
-else:
-    p = int(sys.argv[1], 10)
-    meter.set_power(p)
+if __name__ == "__main__":
+    if sys.argv[1] == "auto":
+        auto()
+    else:
+        p = int(sys.argv[1], 10)
+        meter.set_power(p)
 
 # FIN
