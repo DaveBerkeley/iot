@@ -1,6 +1,6 @@
 
 function txTemp()
-    t = getTemp(temperature_pin)
+    local t = getTemp(temperature_pin)
     tx("wiki/iot.cgp?temp=" .. (t / 10000.0))
 end
 
