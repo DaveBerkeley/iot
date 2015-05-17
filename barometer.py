@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -u
 
 import time
 import urllib2
@@ -45,7 +45,14 @@ def get(data):
 s = init_serial()
 
 while True:
-    line = s.readline()
+    try:
+        line = s.readline()
+    except Exception, ex:
+        print str(ex)
+        time.sleep(10)
+        s = init_serial()
+        continue
+
     if not line.endswith("\r\n"):
         continue
     try:
