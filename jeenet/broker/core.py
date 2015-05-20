@@ -290,11 +290,7 @@ class Clock(Device):
 def run_threads(runners):
     threads = []
     for target in runners:
-        def fn(thread):
-            log("running", thread)
-            thread()
-            log("ending", thread)
-        thread = Thread(target=fn(target.run), name=`target`)
+        thread = Thread(target=target.run, name=`target`)
         if hasattr(target, "kill"):
             thread.kill = target.kill
         thread.start()
