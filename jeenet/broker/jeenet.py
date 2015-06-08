@@ -75,16 +75,25 @@ class JeeNet(Reader):
         if self.verbose:
             log("reset", self.dev)
 
+    def failcheck(self, text="xx"):
+        try:
+            if self.s is None:
+                self.open()
+                self.reset()
+        except Exception, ex:
+            log(str(ex), text)
+            self.s = None
+            time.sleep(5)
+
     def read(self):
         while not self.killed:
+            self.failcheck("read")
             try:
-                if self.s is None:
-                    self.open()
                 c = self.s.read(1)
             except Exception, ex:
                 log(str(ex), "read")
                 self.s = None
-                time.sleep(5)
+                continue
             if len(c):
                 return c
 
@@ -96,13 +105,19 @@ class JeeNet(Reader):
             log('send', node, `data`)
         # TODO : put a lock on this resource
         try:
+            self.failcheck("write")
             self.s.write(bencode.encode([ node, data ]))
         except serial.SerialException, ex:
             log(str(ex), "write")
             self.s = None
 
     def get(self):
-        node, raw = self.parser.get()
+        try:
+            node, raw = self.parser.get()
+        except Exception, ex:
+            log(str(ex), "get")
+            self.s = None
+            raise
         if self.verbose:
             log("jeenet", node, `raw`)
         assert type(raw) == type("123")
