@@ -77,7 +77,14 @@ class JeeNet(Reader):
 
     def read(self):
         while not self.killed:
-            c = self.s.read(1)
+            try:
+                if self.s is None:
+                    self.s = self.open()
+                c = self.s.read(1)
+            except Exception, ex:
+                log(str(ex), "read")
+                self.s = None
+                time.sleep(5)
             if len(c):
                 return c
 
@@ -88,7 +95,11 @@ class JeeNet(Reader):
         if self.verbose:
             log('send', node, `data`)
         # TODO : put a lock on this resource
-        self.s.write(bencode.encode([ node, data ]))
+        try:
+            self.s.write(bencode.encode([ node, data ]))
+        except serial.SerialException, ex:
+            log(str(ex), "write")
+            self.s = None
 
     def get(self):
         node, raw = self.parser.get()
