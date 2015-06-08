@@ -78,6 +78,8 @@ class JeeNet(Reader):
     def failcheck(self, text="xx"):
         try:
             if self.s is None:
+                log("failcheck")
+                time.sleep(5)
                 self.open()
                 self.reset()
         except Exception, ex:
@@ -219,6 +221,11 @@ class Gateway(JeeNodeDev):
             self.hello(0, msg_id=msg_id)
         return info
 
+    def on_timeout(self, msg):
+        self.set_state("down", "node down", "timeout error")
+        log("force reconnection and board reset")
+        self.s = None
+ 
     def get_poll_period(self):
         return 10.0
 
