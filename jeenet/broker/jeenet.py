@@ -79,7 +79,7 @@ class JeeNet(Reader):
         while not self.killed:
             try:
                 if self.s is None:
-                    self.s = self.open()
+                    self.open()
                 c = self.s.read(1)
             except Exception, ex:
                 log(str(ex), "read")
