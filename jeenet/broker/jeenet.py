@@ -75,9 +75,27 @@ class JeeNet(Reader):
         if self.verbose:
             log("reset", self.dev)
 
+    def failcheck(self, text="xx"):
+        try:
+            if self.s is None:
+                log("failcheck")
+                time.sleep(5)
+                self.open()
+                self.reset()
+        except Exception, ex:
+            log(str(ex), text)
+            self.s = None
+            time.sleep(5)
+
     def read(self):
         while not self.killed:
-            c = self.s.read(1)
+            self.failcheck("read")
+            try:
+                c = self.s.read(1)
+            except Exception, ex:
+                log(str(ex), "read")
+                self.s = None
+                continue
             if len(c):
                 return c
 
@@ -88,10 +106,20 @@ class JeeNet(Reader):
         if self.verbose:
             log('send', node, `data`)
         # TODO : put a lock on this resource
-        self.s.write(bencode.encode([ node, data ]))
+        try:
+            self.failcheck("write")
+            self.s.write(bencode.encode([ node, data ]))
+        except serial.SerialException, ex:
+            log(str(ex), "write")
+            self.s = None
 
     def get(self):
-        node, raw = self.parser.get()
+        try:
+            node, raw = self.parser.get()
+        except Exception, ex:
+            log(str(ex), "get")
+            self.s = None
+            raise
         if self.verbose:
             log("jeenet", node, `raw`)
         assert type(raw) == type("123")
@@ -193,6 +221,11 @@ class Gateway(JeeNodeDev):
             self.hello(0, msg_id=msg_id)
         return info
 
+    def on_timeout(self, msg):
+        self.set_state("down", "node down", "timeout error")
+        log("force reconnection and board reset")
+        self.s = None
+ 
     def get_poll_period(self):
         return 10.0
 
