@@ -6,7 +6,7 @@ import urllib2
 # http://pyserial.sourceforge.net/
 import serial
 
-serial_dev = "/dev/nano"
+serial_dev = "/dev/barometer"
 server = "klatu"
 
 #
