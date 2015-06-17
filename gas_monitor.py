@@ -20,6 +20,7 @@ class Filter:
         self.rot = False
     def add(self, data):
         # filter out small reverse travel
+        print data
         if not self.last is None:
             diff = data - self.last
             if diff in [ -1, -2, self.sectors-1, self.sectors-2 ]:
@@ -51,9 +52,9 @@ class Filter:
 
 if __name__ == "__main__":
 
-    cfeet_2_cmeters = 0.0283168466
+    feet3_2_meters3 = 0.0283168466
     parkinson_cowen = 0.017
-    rot = parkinson_cowen * cfeet_2_cmeters
+    rot = parkinson_cowen * feet3_2_meters3
 
     p = optparse.OptionParser()
     p.add_option("-d", "--dev", dest="dev", default="/dev/nano")
@@ -92,6 +93,9 @@ if __name__ == "__main__":
         try:
             sector = parse(line)
         except ValueError:
+            continue
+
+        if sector == -1: # bad frame
             continue
 
         filt.add(sector)
