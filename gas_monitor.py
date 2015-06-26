@@ -10,6 +10,15 @@ import serial
 #
 #
 
+def log(*args):
+    print time.strftime("%Y/%m/%d %H:%M:%S"),
+    for arg in args:
+        print arg,
+    print
+
+#
+#
+
 class Filter:
 
     def __init__(self, sectors):
@@ -20,7 +29,7 @@ class Filter:
         self.rot = False
     def add(self, data):
         # filter out small reverse travel
-        print data
+        log(data)
         if not self.last is None:
             diff = data - self.last
             if diff in [ -1, -2, self.sectors-1, self.sectors-2 ]:
@@ -119,13 +128,14 @@ if __name__ == "__main__":
             last_sector = None
 
         if f is None:
+            log("make", path)
             f = file(path, "a")
 
         if filtered != last_sector:
             last_sector = filtered
             this_rot = (filtered / float(opts.sectors)) * opts.rotation
             rot = this_rot + (rotations * opts.rotation)
-            #print "log", hm, filtered, rotations, rot
+            log(hm, filtered, rotations, rot)
             print >> f, hm, filtered, rotations, "%.5f" % rot
             f.flush()
 
