@@ -17,45 +17,75 @@ def log(*args):
     print
 
 #
+#   Filter out noise
 #
+#   Remove forward movement
+#   Remove reverse movement > 10
 
 class Filter:
 
     def __init__(self, sectors):
         self.sectors = sectors
         self.data = None
-        self.last = None
-        self.count = 0
-        self.rot = False
+        self.last = []
+        self.value = None
+
+    def prev(self, n, r=3):
+        for i in range(1, r):
+            p = (i + n) % self.sectors
+            yield p
+
     def add(self, data):
-        # filter out small reverse travel
         log(data)
-        if not self.last is None:
-            diff = data - self.last
-            if diff in [ -1, -2, self.sectors-1, self.sectors-2 ]:
-                #print "ignore it"
-                return
-        if data == self.data:
-            self.count += 1
-        else:
-            self.count = 0
         self.data = data
+
+        if self.value:
+            if data in self.prev(self.value):
+                return
+
+        self.value = data
+
+        self.last = self.last[-1:] + [ data, ]
+        log(self.last)
+
     def get(self):
-        if self.count >= 3:
-            if not self.last is None:
-                diff = self.data - self.last
-                if diff in [ -(self.sectors-1), -(self.sectors-2) ]:
-                    self.rot = True
+        return self.value
 
-            self.last = self.data
-            return self.data
+    #def rotation(self):
+    #    # detect rotations
+    #    r = self.rot
+    #    self.rot = False
+    #    return r
+
+#
+#
+
+tfile = None
+
+def get_line(opts):
+
+    if opts.test:
+        global tfile
+        if tfile is None:
+            tfile = open(opts.test)
+        f = tfile
+
+        while True:
+            line = f.readline()
+            parts = line.strip().split()
+            if len(parts) == 3:
+                return parts[2]
+
+    global s
+    if s is None:
+        s = serial.Serial(opts.dev, 9600)
+
+    try:
+        return s.readline()
+    except:
+        s = None
+        time.sleep(5)
         return None
-    def rotation(self):
-        # detect rotations
-        r = self.rot
-        self.rot = False
-        return r
-
 #
 #
 
@@ -71,6 +101,7 @@ if __name__ == "__main__":
     p.add_option("-b", "--base", dest="base", default="/tmp/gas")
     p.add_option("-s", "--sectors", dest="sectors", default=64)
     p.add_option("-r", "--rotation", dest="rotation", default=rot)
+    p.add_option("-t", "--test", dest="test")
     opts, args = p.parse_args()
 
     s = None
@@ -85,15 +116,8 @@ if __name__ == "__main__":
         return int(line)
 
     while True:
-        if s is None:
-            s = serial.Serial(opts.dev, 9600)
 
-        try:
-            line = s.readline()
-        except:
-            s = None
-            time.sleep(5)
-            continue
+        line = get_line(opts)
 
         if not line:
             time.sleep(1)
@@ -113,8 +137,8 @@ if __name__ == "__main__":
         if filtered is None:
             continue
 
-        if filt.rotation():
-            rotations += 1
+        #if filt.rotation():
+        #    rotations += 1
 
         now = datetime.datetime.now()
         ymd = now.strftime("%Y/%m/%d.log")
