@@ -96,7 +96,7 @@ if __name__ == "__main__":
     rot = parkinson_cowen * feet3_2_meters3
 
     p = optparse.OptionParser()
-    p.add_option("-d", "--dev", dest="dev", default="/dev/nano")
+    p.add_option("-d", "--dev", dest="dev", default="/dev/gasmeter")
     #p.add_option("-b", "--base", dest="base", default="/usr/local/data/gas")
     p.add_option("-b", "--base", dest="base", default="/tmp/gas")
     p.add_option("-s", "--sectors", dest="sectors", default=64)
