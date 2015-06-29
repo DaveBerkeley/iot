@@ -28,11 +28,10 @@ class Filter:
     def __init__(self, sectors):
         self.sectors = sectors
         self.data = None
-        self.last = []
         self.value = None
         self.prev_value = None
 
-    def prev(self, n, r=3):
+    def prev(self, n, r=5):
         for i in range(1, r):
             p = (i + n) % self.sectors
             yield p
@@ -49,9 +48,6 @@ class Filter:
                 return
 
         self.value = data
-
-        self.last = self.last[-1:] + [ data, ]
-        #log(self.last)
 
     def get(self):
         return self.value
