@@ -15,15 +15,42 @@ def log(*args):
         print arg,
     print
 
-def on_msg(x):
-    data = json.loads(x.payload)
-    if data.get("subtopic") != "jeenet/testdev_1":
-        return
-    temp = float(data["temp"])
-    print temp
+#
+#
+
+class Handler:
+
+    def __init__(self, temp, src, dev, duration):
+        self.temp = temp
+        self.src = src
+        self.dev = dev
+        self.duration = duration
+
+    def on_msg(self, x):
+        data = json.loads(x.payload)
+        if data.get("subtopic") != self.src:
+            return
+        temp = float(data["temp"])
+        log(temp)
+        if temp < self.temp:
+            self.pulse()
+
+    def pulse(self):
+        d = { 
+            "dev" : self.dev, 
+            "cmd" : "pulse", 
+            "args" : [ self.duration, ],
+        }
+        j = json.dumps(d)
+        mqtt.send("home/relay", j)
+
+#
+#
+
+handler = Handler(27.0, "jeenet/testdev_1", 5, 11000)
 
 mqtt = broker.Broker("bread", server="mosquitto")
-mqtt.subscribe("home/jeenet/#", on_msg)
+mqtt.subscribe("home/jeenet/#", handler.on_msg)
 
 mqtt.start()
 
