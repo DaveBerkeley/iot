@@ -133,11 +133,37 @@ def syslog_handler(path, broker, data):
 #
 #
 
+def gas_handler(path, broker, data):
+    # /usr/local/data/gas/2015/06/29.log
+    # '174831 58 0 0.00005' hhmmss sector rotations cubic_metres
+    parts = path.split("/")
+    y, m, d = parts[-3], parts[-2], parts[-1][:2]
+    parts = data.split(" ")
+
+    if len(parts) != 4:
+        return
+
+    hmd = parts[0]
+    h, m, d = hmd[:2], hmd[2:4], hmd[4:]
+
+    d = {
+        "time" : "%s/%s/%s %s%s%s" % (y, m, d, h, m, d),
+        "sector" : parts[1],
+        "rots" : parts[2],
+        "m3" : parts[3],
+    }
+
+    broker.send("home/gas", json.dumps(d))
+
+#
+#
+
 iot_dir = "/usr/local/data/iot"
 rivers_dir = "/usr/local/data/rivers"
 power_dir = "/usr/local/data/power"
 solar_dir = "/usr/local/data/solar"
 monitor_dir = "/usr/local/data/monitor"
+gas_dir = "/usr/local/data/gas"
 syslog_dir = "/var/log/syslog"
 
 handlers = {
@@ -146,6 +172,7 @@ handlers = {
     power_dir : power_handler,
     solar_dir : solar_handler,
     monitor_dir : monitor_handler,
+    gas_dir : gas_handler,
     #syslog_dir : syslog_handler,
 }
 
