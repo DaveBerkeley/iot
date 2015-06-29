@@ -149,7 +149,7 @@ def on_home_msg(x):
 def on_gas_msg(x):
     data = json.loads(x.payload)
     info = ( 
-        ( "gas_m3", data["m3"], ), 
+        ( "gas_m3", 1000 * float(data["m3"]), ), 
         ( "gas_sector", data["sector"], ), 
     )
     tx_info("gas", info)
