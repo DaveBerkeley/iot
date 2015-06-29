@@ -146,6 +146,14 @@ def on_home_msg(x):
     )
     tx_info("home", info)
 
+def on_gas_msg(x):
+    data = json.loads(x.payload)
+    info = ( 
+        ( "gas_m3", data["m3"], ), 
+        ( "gas_sector", data["sector"], ), 
+    )
+    tx_info("gas", info)
+
 #
 #
 
@@ -155,6 +163,7 @@ mqtt = broker.Broker("xively", server="mosquitto")
 mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
 mqtt.subscribe("home/net/#", on_net_msg)
 mqtt.subscribe("home/pressure", on_pressure_msg)
+mqtt.subscribe("home/gas", on_gas_msg)
 mqtt.subscribe("home", on_home_msg)
 
 mqtt.start()
