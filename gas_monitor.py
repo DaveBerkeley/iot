@@ -19,8 +19,9 @@ def log(*args):
 #
 #   Filter out noise
 #
-#   Remove forward movement
-#   Remove reverse movement > 10
+#   Expect data in sequence eg. 5, 4, 3, 2, 1, 0, sectors-1, sectors-2, ..
+#
+#   Remove noise and allow small holes in the sequence.
 
 class Filter:
 
@@ -29,6 +30,7 @@ class Filter:
         self.data = None
         self.last = []
         self.value = None
+        self.prev_value = None
 
     def prev(self, n, r=3):
         for i in range(1, r):
@@ -36,7 +38,10 @@ class Filter:
             yield p
 
     def add(self, data):
-        log(data)
+        if data != self.prev_value:
+            log(data)
+            self.prev_value = data
+
         self.data = data
 
         if self.value:
@@ -46,16 +51,10 @@ class Filter:
         self.value = data
 
         self.last = self.last[-1:] + [ data, ]
-        log(self.last)
+        #log(self.last)
 
     def get(self):
         return self.value
-
-    #def rotation(self):
-    #    # detect rotations
-    #    r = self.rot
-    #    self.rot = False
-    #    return r
 
 #
 #
@@ -63,19 +62,6 @@ class Filter:
 tfile = None
 
 def get_line(opts):
-
-    if opts.test:
-        global tfile
-        if tfile is None:
-            tfile = open(opts.test)
-        f = tfile
-
-        while True:
-            line = f.readline()
-            parts = line.strip().split()
-            if len(parts) == 3:
-                return parts[2]
-
     global s
     if s is None:
         s = serial.Serial(opts.dev, 9600)
@@ -97,11 +83,10 @@ if __name__ == "__main__":
 
     p = optparse.OptionParser()
     p.add_option("-d", "--dev", dest="dev", default="/dev/gasmeter")
-    #p.add_option("-b", "--base", dest="base", default="/usr/local/data/gas")
-    p.add_option("-b", "--base", dest="base", default="/tmp/gas")
+    p.add_option("-b", "--base", dest="base", default="/usr/local/data/gas")
+    #p.add_option("-b", "--base", dest="base", default="/tmp/gas")
     p.add_option("-s", "--sectors", dest="sectors", default=64)
     p.add_option("-r", "--rotation", dest="rotation", default=rot)
-    p.add_option("-t", "--test", dest="test")
     opts, args = p.parse_args()
 
     s = None
@@ -132,18 +117,18 @@ if __name__ == "__main__":
             continue
 
         filt.add(sector)
-        filtered = filt.get()
-        #print sector, filtered
-        if filtered is None:
+        value = filt.get()
+        #print sector, value
+        if value is None:
             continue
-
-        #if filt.rotation():
-        #    rotations += 1
 
         now = datetime.datetime.now()
         ymd = now.strftime("%Y/%m/%d.log")
         hm = now.strftime("%H%M%S")
         path = os.path.join(opts.base, ymd)
+
+        if f and (f.name != path):
+            f = None
 
         dirname, x = os.path.split(path)
         if not os.path.exists(dirname):
@@ -155,12 +140,19 @@ if __name__ == "__main__":
             log("make", path)
             f = file(path, "a")
 
-        if filtered != last_sector:
-            last_sector = filtered
-            this_rot = (filtered / float(opts.sectors)) * opts.rotation
+        if value != last_sector:
+
+            if not last_sector is None:
+                margin = 4
+                if value > (opts.sectors - margin):
+                    if last_sector < margin:
+                        rotations += 1
+
+            last_sector = value
+            this_rot = (1.0 - (value / float(opts.sectors))) * opts.rotation
             rot = this_rot + (rotations * opts.rotation)
-            log(hm, filtered, rotations, rot)
-            print >> f, hm, filtered, rotations, "%.5f" % rot
+            log(hm, value, rotations, rot)
+            print >> f, hm, value, rotations, "%.5f" % rot
             f.flush()
 
 # FIN
