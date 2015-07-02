@@ -27,7 +27,10 @@ def put(opts, data):
         args.append("%s=%s" % (key, value))
 
     url += "&".join(args)
-    urllib2.urlopen(url)
+    try:
+        urllib2.urlopen(url)
+    except Exception, ex:
+        log(str(ex))
 #
 #
 
