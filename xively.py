@@ -89,8 +89,11 @@ def tx_info(name, info):
             return
 
     log("COSM PUT", name, info)
-    cosm.put(info)
-    last_send[name] = now
+    try:
+        cosm.put(info)
+        last_send[name] = now
+    except Exception, ex:
+        log(str(ex))
 
 def on_jeenet_msg(x):
     data = json.loads(x.payload)
@@ -151,6 +154,7 @@ def on_gas_msg(x):
     info = ( 
         ( "gas_m3", 1000 * float(data["m3"]), ), 
         ( "gas_sector", data["sector"], ), 
+        ( "gas_rate", 1000000 * float(data["rate"]), ), 
     )
     tx_info("gas", info)
 
