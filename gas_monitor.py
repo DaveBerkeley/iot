@@ -68,6 +68,41 @@ def get_line(opts):
         s = None
         time.sleep(5)
         return None
+
+#
+#   Average
+
+class Average:
+    def __init__(self):
+        self.data = []
+    def add(self, now, value):
+        self.data.append((now, value))
+        # remove old data
+        dt = datetime.timedelta(minutes=1)
+        while self.data:
+            t, v = self.data[0]
+            if (t + dt) > now:
+                break
+            del self.data[0]
+    def diff(self):
+        at, a = self.data[0]
+        bt, b = self.data[-1]
+        dv = b - a
+        dt = (bt - at).total_seconds()
+        if not dt:
+            return 0
+        return dv / dt
+
+average = Average()
+
+#
+#
+
+def save_to_log(f, hm, value, rotations, rot, av):
+    log(hm, value, rotations, rot)
+    print >> f, hm, value, rotations, "%.5f" % rot, av
+    f.flush()
+
 #
 #
 
@@ -83,14 +118,14 @@ if __name__ == "__main__":
     #p.add_option("-b", "--base", dest="base", default="/tmp/gas")
     p.add_option("-s", "--sectors", dest="sectors", default=64)
     p.add_option("-r", "--rotation", dest="rotation", default=rot)
+    p.add_option("-i", "--index", dest="index", type="int", default=0)
     opts, args = p.parse_args()
 
     s = None
     last_sector = None
-    last_time = datetime.datetime.now()
     f = None
     filt = Filter(opts.sectors)
-    rotations = 0
+    rotations = opts.index
 
     def parse(line):
         line = line.strip()
@@ -136,19 +171,21 @@ if __name__ == "__main__":
             log("make", path)
             f = file(path, "a")
 
+        # log any changes, check for rotations
         if value != last_sector:
-
             if not last_sector is None:
                 margin = 4
                 if value > (opts.sectors - margin):
                     if last_sector < margin:
                         rotations += 1
 
+        this_rot = (1.0 - (value / float(opts.sectors))) * opts.rotation
+        rot = this_rot + (rotations * opts.rotation)
+        average.add(now, rot)
+
+        # log any changes, check for rotations
+        if value != last_sector:
             last_sector = value
-            this_rot = (1.0 - (value / float(opts.sectors))) * opts.rotation
-            rot = this_rot + (rotations * opts.rotation)
-            log(hm, value, rotations, rot)
-            print >> f, hm, value, rotations, "%.5f" % rot
-            f.flush()
+            save_to_log(f, hm, value, rotations, rot, average.diff())
 
 # FIN

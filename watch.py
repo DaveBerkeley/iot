@@ -140,7 +140,7 @@ def gas_handler(path, broker, data):
     y, m, d = parts[-3], parts[-2], parts[-1][:2]
     parts = data.split(" ")
 
-    if len(parts) != 4:
+    if len(parts) != 5:
         return
 
     hmd = parts[0]
@@ -151,6 +151,7 @@ def gas_handler(path, broker, data):
         "sector" : parts[1],
         "rots" : parts[2],
         "m3" : parts[3],
+        "rate" : parts[4],
     }
 
     broker.send("home/gas", json.dumps(d))
