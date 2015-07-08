@@ -4,6 +4,8 @@ import sys
 import os
 import datetime
 import json
+import optparse
+
 from subprocess import Popen, PIPE
 
 def hm2s(text):
@@ -11,28 +13,65 @@ def hm2s(text):
     h, m = [ int(x) for x in [ h, m ] ]
     return (m*60) + (h*60*60)
 
+p = optparse.OptionParser()
+p.add_option("-f", "--field", dest="field")
+p.add_option("-s", "--subtopic", dest="subtopic")
+p.add_option("-d", "--day", dest="day")
+p.add_option("-S", "--start", dest="start")
+p.add_option("-E", "--end", dest="end")
+p.add_option("-l", "--log", dest="log", default="iot")
 
-base = "/usr/local/data/iot"
+opts, args = p.parse_args()    
 
-day = sys.argv[1]
-subtopic = sys.argv[2]
-field = sys.argv[3]
+base = "/usr/local/data/" + opts.log
 
-start, end = None, None
-if len(sys.argv) > 4:
-    start = hm2s(sys.argv[4])
-    if len(sys.argv) > 5:
-        end = hm2s(sys.argv[5])
+day = opts.day
+subtopic = opts.subtopic
+field = opts.field
+
+start, end = opts.start, opts.end
+if start:
+    start = hm2s(start)
+if end:
+    end = hm2s(end)
 
 path = os.path.join(base, day + ".log")
 
 opath = "/tmp/plot.csv" 
 ofile = open(opath, "w")
 
+#
+#   Handlers for the different log files
+
+def iot(line):
+    return json.loads(line)
+
+def gas(line):
+    parts = line.split()
+    hms = parts[0]
+    hm = hms[:2], hms[2:4], hms[4:6]
+    hm = ":".join(hm)
+    d = {
+        "subtopic"  : "gas",
+        "time"      : "xxxx " + hm,
+        "sector"    : parts[1],
+        "rots"      : parts[2],
+        "total"     : parts[3],
+        "rate"      : parts[4],
+    }
+    return d
+
+handler = {
+    "iot" : iot,
+    "gas" : gas,
+}
+
+fn = handler[opts.log]
+
 #print path
 
 for line in file(path):
-    data = json.loads(line)
+    data = fn(line)
     if data.get("subtopic") != subtopic:
         if data.get("ipaddr") != subtopic:
             continue
