@@ -23,9 +23,6 @@ class HumidityDev(JeeNodeDev):
         if not info.get("humidity") is None:
             info["humidity"] /= 100.0
 
-        # ack is now handled by the radio board
-        #if flags & self.ack_flag:
-        #    self.hello(0, msg_id=msg_id)
         return info
 
     def set_mode(self, mode):

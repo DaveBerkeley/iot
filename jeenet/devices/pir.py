@@ -21,9 +21,6 @@ class PirSensor(JeeNodeDev):
         if not info.get("temp") is None:
             info["temp"] /= 100.0
 
-        # ack is now handled by the radio board
-        #if flags & self.ack_flag:
-        #    self.hello(0, msg_id=msg_id)
         return info
 
     def set_mode(self, mode):
