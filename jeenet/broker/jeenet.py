@@ -189,8 +189,9 @@ class JeeNodeDev(Device):
         raw = struct.pack(self.fmt_header, mid, self.dev_id, mask)
         return mid, raw + args
 
-    def hello(self, flags, msg_id=None):
-        mid, raw = self.make_raw(flags, [], msg_id)
+    def hello(self, flags, msg_id=None, unknown_devs=0):
+        fields = [ ( (1<<0), "<L", unknown_devs), ]
+        mid, raw = self.make_raw(flags, fields, msg_id)
         if flags & self.ack_flag:
             msg = self.make_msg("hello", mid, raw)
             self.add_message(msg)
@@ -241,12 +242,18 @@ class Monitor(Device):
         self.event = Event()
         self.waits = []
         self.lock = Lock()
+        self.unknown = 0
+
+    def report_unknown(self, node):
+        log("report unknown", node)
+        self.unknown |= 1 << node
 
     def poll_device(self, device):
         if not hasattr(device, "hello"):
             return
         log("hello", device.node)
-        device.hello(device.ack_flag)
+        device.hello(device.ack_flag, unknown_devs = self.unknown)
+        self.unknown = 0
 
     def make_wait(self, now, device):
         period = device.get_poll_period()

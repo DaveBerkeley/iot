@@ -40,9 +40,10 @@ known_devices = {
 
 class UnknownHandler:
 
-    def __init__(self, network, broker):
+    def __init__(self, network, broker, monitor):
         self.network = network
         self.broker = broker
+        self.monitor = monitor
 
     def add_device(self, node, data, info):
         print info
@@ -74,6 +75,8 @@ class UnknownHandler:
         info["why"] = info.get("device", "message received")
         self.broker.send("unknown_node_%d" % node, info)
 
+        self.monitor.report_unknown(node)
+
 #
 #
 
@@ -95,10 +98,6 @@ runners.append(jeenet)
 broker = Broker(verbose=True)
 runners.append(broker)
 
-# Handle any unknown devices that message the gateway
-unknown = UnknownHandler(jeenet, broker)
-jeenet.register(-1, unknown.on_device)
-
 clock = Clock(node="tick", broker=broker, period=0.1)
 runners.append(clock)
 
@@ -108,6 +107,10 @@ runners.append(js)
 # Monitor handles pinging any nodes and monitoring if they are down
 monitor = Monitor(node="monitor", broker=broker, period=10, dead_time=20)
 runners.append(monitor)
+
+# Handle any unknown devices that message the gateway
+unknown = UnknownHandler(jeenet, broker, monitor)
+jeenet.register(-1, unknown.on_device)
 
 iot = IoT(name="iot", broker=broker, server="klatu")
 runners.append(iot)
