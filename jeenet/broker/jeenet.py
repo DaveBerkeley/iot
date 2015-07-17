@@ -288,7 +288,6 @@ class Monitor(Device):
         self.lock.release()
 
         while not self.killed:
-
             self.lock.acquire()
             self.waits.sort()
             top = self.waits[0]
@@ -297,7 +296,9 @@ class Monitor(Device):
             next_time, period, device = top
             diff = next_time - time.time()
             if diff > 0.0:
-                self.event.wait(diff)
+                log("run", diff)
+                #self.event.wait(diff)
+                time.sleep(min(1.0, diff))
                 continue
 
             self.poll_device(device)
