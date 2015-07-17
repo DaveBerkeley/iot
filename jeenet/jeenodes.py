@@ -4,8 +4,6 @@ import time
 import sys
 import os
 import datetime
-import jsonrpclib
-import socket
 from threading import Thread
 
 from broker.core import Device, Broker, Clock, log, run_threads, kill_threads, get_device, on_new_device
@@ -15,6 +13,7 @@ from broker.iot import IoT
 
 from devices.pir import PirSensor
 from devices.triac import Triac
+from devices.humidity import HumidityDev
 
 verbose = True
 
@@ -25,45 +24,6 @@ class TestDev(PirSensor):
 
     def get_poll_period(self):
         return None
-
-#
-#
-
-class HumidityDev(JeeNodeDev):
-
-    def __init__(self, *args, **kwargs):
-        JeeNodeDev.__init__(self, *args, **kwargs)
-
-    def to_info(self, data):
-        rx_fields = [ 
-            (1<<1, "temp", "<H"),
-            (1<<2, "humidity", "<H"), 
-            (self.text_flag, "text", "p"),
-        ]
-
-        msg_id, flags, info = message_info(data, self.fmt_header, rx_fields)
-
-        if not info.get("temp") is None:
-            info["temp"] /= 100.0
-        if not info.get("humidity") is None:
-            info["humidity"] /= 100.0
-
-        # ack is now handled by the radio board
-        #if flags & self.ack_flag:
-        #    self.hello(0, msg_id=msg_id)
-        return info
-
-    def set_mode(self, mode):
-        assert mode in [ 0, 1, 2 ]
-        log("set mode", mode)
-        fields = [ (1<<0, "<B", mode), ]
-        msg_id, raw = self.make_raw(self.ack_flag, fields)
-        self.tx_message(msg_id, raw, "set_mode", True)
-
-    def get_poll_period(self):
-        return None
-
-    api = JeeNodeDev.api + [ "set_mode" ]
 
 #
 #   Known device types
