@@ -251,7 +251,7 @@ class Monitor(Device):
     def poll_device(self, device):
         if not hasattr(device, "hello"):
             return
-        log("hello", device.node)
+        log("hello", device.node, "0x%X" % self.unknown)
         device.hello(device.ack_flag, unknown_devs = self.unknown)
         self.unknown = 0
 
