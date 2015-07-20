@@ -13,6 +13,7 @@ class HumidityDev(JeeNodeDev):
         rx_fields = [ 
             (1<<1, "temp", "<H"),
             (1<<2, "humidity", "<H"), 
+            (1<<3, "vcc", "<H"),
             (self.text_flag, "text", "p"),
         ]
 
@@ -22,6 +23,8 @@ class HumidityDev(JeeNodeDev):
             info["temp"] /= 100.0
         if not info.get("humidity") is None:
             info["humidity"] /= 100.0
+        if not info.get("vcc") is None:
+            info["vcc"] /= 1000.0
 
         return info
 
