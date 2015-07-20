@@ -296,7 +296,7 @@ class Monitor(Device):
             next_time, period, device = top
             diff = next_time - time.time()
             if diff > 0.0:
-                log("run", diff)
+                #log("run", diff)
                 #self.event.wait(diff)
                 time.sleep(min(1.0, diff))
                 continue

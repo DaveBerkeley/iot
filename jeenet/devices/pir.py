@@ -13,6 +13,7 @@ class PirSensor(JeeNodeDev):
         rx_fields = [ 
             (1<<0, "pir", "<B"), 
             (1<<1, "temp", "<H"),
+            (1<<2, "vcc", "<H"),
             (self.text_flag, "text", "p"),
         ]
 
@@ -20,6 +21,9 @@ class PirSensor(JeeNodeDev):
 
         if not info.get("temp") is None:
             info["temp"] /= 100.0
+
+        if not info.get("vcc") is None:
+            info["vcc"] /= 1000.0
 
         return info
 

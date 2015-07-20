@@ -8,7 +8,7 @@ from threading import Thread
 
 from broker.core import Device, Broker, Clock, log, run_threads, kill_threads, get_device, on_new_device
 from broker.jeenet import JeeNodeDev, JeeNet, Gateway, message_info, Monitor
-from broker.jsonrpc import JsonRpcServer
+#from broker.jsonrpc import JsonRpcServer
 from broker.iot import IoT
 
 from devices.pir import PirSensor
@@ -101,8 +101,8 @@ runners.append(broker)
 clock = Clock(node="tick", broker=broker, period=0.1)
 runners.append(clock)
 
-js = JsonRpcServer(name="json", broker=broker, port=8888)
-runners.append(js)
+#js = JsonRpcServer(name="json", broker=broker, port=8888)
+#runners.append(js)
 
 # Monitor handles pinging any nodes and monitoring if they are down
 monitor = Monitor(node="monitor", broker=broker, period=10, dead_time=20)
