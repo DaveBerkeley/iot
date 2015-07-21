@@ -112,27 +112,6 @@ def monitor_handler(path, broker, data):
 #
 #
 
-def syslog_handler(path, broker, data):
-    # 'Apr 15 13:45:07 klatu dnsmasq-dhcp[2578]: DHCPACK(eth0) 192.168.0.139 1c:3e:84:62:5a:b7 chrubuntu'
-    # 
-    parts = data.split(" ")
-
-    if len(parts) != 9:
-        return
-    if parts[5] != "DHCPACK(eth0)":
-        return
-    ip, mac, host = parts[6:]
-
-    d = {
-        "ip" : ip,
-        "mac" : mac,
-        "host" : host,
-    }
-    broker.send("home/net/dhcp", json.dumps(d))
-
-#
-#
-
 def gas_handler(path, broker, data):
     # /usr/local/data/gas/2015/06/29.log
     # '174831 58 0 0.00005' hhmmss sector rotations cubic_metres
@@ -159,6 +138,31 @@ def gas_handler(path, broker, data):
 #
 #
 
+def syslog_handler(path, broker, data):
+    # 'Apr 15 13:45:07 klatu dnsmasq-dhcp[2578]: DHCPACK(eth0) 192.168.0.139 1c:3e:84:62:5a:b7 chrubuntu'
+    # 
+    if path != "/var/log/syslog":
+        return
+
+    parts = data.split(" ")
+
+    if len(parts) != 9:
+        return
+    if not "DHCPACK" in parts[5]:
+        return
+
+    ip, mac, host = parts[6:]
+
+    d = {
+        "ip" : ip,
+        "mac" : mac,
+        "host" : host,
+    }
+    broker.send("home/net/dhcp", json.dumps(d))
+
+#
+#
+
 def weather_handler(path, broker, data):
     # /usr/local/data/weather/2015/06/29.log
     # json data
@@ -174,7 +178,7 @@ solar_dir = "/usr/local/data/solar"
 monitor_dir = "/usr/local/data/monitor"
 gas_dir = "/usr/local/data/gas"
 weather_dir = "/usr/local/data/weather"
-syslog_dir = "/var/log/syslog"
+syslog_dir = "/var/log"
 
 handlers = {
     iot_dir : iot_handler,
@@ -184,7 +188,7 @@ handlers = {
     monitor_dir : monitor_handler,
     gas_dir : gas_handler,
     weather_dir : weather_handler,
-    #syslog_dir : syslog_handler,
+    syslog_dir : syslog_handler,
 }
 
 paths = handlers.keys()
@@ -331,6 +335,8 @@ if __name__ == "__main__":
     for path in paths:
         print "monitor", path
         isdir = os.path.isdir(path)
+        if path == "/var/log":
+            isdir = False
         observer.schedule(event_handler, path, recursive=isdir)
     observer.start()
     try:
