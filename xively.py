@@ -5,6 +5,8 @@ import datetime
 import json
 import httplib
 import socket
+import traceback
+import sys
 from threading import Lock
 
 import broker
@@ -93,7 +95,11 @@ def tx_info(name, info):
         cosm.put(info)
         last_send[name] = now
     except Exception, ex:
+        traceback.print_stack(sys.stdout)
         log(str(ex))
+
+#
+#
 
 def on_jeenet_msg(x):
     data = json.loads(x.payload)
@@ -188,6 +194,9 @@ while True:
     except KeyboardInterrupt:
         log("irq")
         break
+    except Exception, ex:
+        traceback.print_stack(sys.stdout)
+        raise
 
 mqtt.stop()
 mqtt.join()
