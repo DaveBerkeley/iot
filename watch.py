@@ -159,12 +159,21 @@ def gas_handler(path, broker, data):
 #
 #
 
+def weather_handler(path, broker, data):
+    # /usr/local/data/weather/2015/06/29.log
+    # json data
+    broker.send("home/weather", data)
+
+#
+#
+
 iot_dir = "/usr/local/data/iot"
 rivers_dir = "/usr/local/data/rivers"
 power_dir = "/usr/local/data/power"
 solar_dir = "/usr/local/data/solar"
 monitor_dir = "/usr/local/data/monitor"
 gas_dir = "/usr/local/data/gas"
+weather_dir = "/usr/local/data/weather"
 syslog_dir = "/var/log/syslog"
 
 handlers = {
@@ -174,6 +183,7 @@ handlers = {
     solar_dir : solar_handler,
     monitor_dir : monitor_handler,
     gas_dir : gas_handler,
+    weather_dir : weather_handler,
     #syslog_dir : syslog_handler,
 }
 
