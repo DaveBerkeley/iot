@@ -77,7 +77,7 @@ def log_site(ident, name):
 #
 #
 
-base = "/tmp/weather"
+base = "/usr/local/data/weather"
 
 ids = {
     "Plymouth" : 3333181,
