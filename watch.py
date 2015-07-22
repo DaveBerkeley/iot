@@ -225,6 +225,8 @@ class Handler:
 
         newfile = False
         if f is None:
+            if os.path.isdir(path):
+                return
             newfile = True
             f = open(path, "r")
             self.files[tree] = f
