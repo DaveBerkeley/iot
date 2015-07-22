@@ -188,8 +188,19 @@ handlers = {
     monitor_dir : monitor_handler,
     gas_dir : gas_handler,
     weather_dir : weather_handler,
-    syslog_dir : syslog_handler,
+    syslog_dir : None, # handled by aliases
 }
+
+def aliases(path):
+    if path == "/var/log":
+        return "/var/log/syslog"
+    return path
+
+def alt_handlers(path):
+    d = {
+        "/var/log/syslog" : syslog_handler,
+    }
+    return d.get(path)
 
 paths = handlers.keys()
 
@@ -207,15 +218,22 @@ class Handler:
 
     def on_data(self, path, tree, data):
         print tree, str(data)
-        handler = handlers[tree]
+        handler = handlers.get(tree)
+        if handler is None:
+            handler = alt_handlers(tree)
         handler(path, self.broker, data)
 
     def handle_file_change(self, path):
+        if os.path.isdir(path):
+            return
+
         tree = None
         for p in paths:
             if path.startswith(p):
                 tree = p
                 break
+
+        tree = aliases(tree)
 
         f = self.files.get(tree)
         if not f is None:
@@ -225,8 +243,6 @@ class Handler:
 
         newfile = False
         if f is None:
-            if os.path.isdir(path):
-                return
             newfile = True
             f = open(path, "r")
             self.files[tree] = f
@@ -239,14 +255,15 @@ class Handler:
             data = f.readline()
             if not data:
                 break
+            print "on_data", path, `data`
             self.on_data(path, tree, data.strip())
 
     def dispatch(self, event):
         try:
             if event.event_type == "modified":
                 path = event.src_path
-                if path.endswith("log"):
-                    self.handle_file_change(path)
+                #if path.endswith("log"):
+                self.handle_file_change(path)
         except Exception, ex:
             print "Exception", str(ex)
             traceback.print_exc()
