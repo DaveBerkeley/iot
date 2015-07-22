@@ -4,3 +4,4 @@
 esp8266/lua/test.lua
 xively_conf.py
 solar_conf.py
+stasi_conf.py
