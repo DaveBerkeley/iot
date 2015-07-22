@@ -7,11 +7,70 @@ import json
 import optparse
 import socket
 import traceback
+import math
+import datetime
 
 # see https://pythonhosted.org/watchdog
 from watchdog.observers import Observer
 
 from broker import Broker
+
+#
+#   Filter
+
+class Filter:
+
+    def __init__(self, dt=datetime.timedelta(minutes=10)):
+        self.data = []
+        self.dt = dt
+
+    def add(self, value, dt):
+        self.data.append((dt, value))
+        while self.data:
+            t, v = self.data[0]
+            if t > (dt - self.dt):
+                break
+            del self.data[0]
+
+    def filtered(self, dt):
+        now, _ = self.data[-1]
+        total = 0.0
+        count = 0
+        for t, v in self.data:
+            if t < (now - dt):
+                continue
+            total += v
+            count += 1
+        return total / float(count)
+
+#   Dust sensor
+#
+#   Convert ratio of low to high signal to dust concentration.
+
+def get_dust(ratio):
+    percent = ratio * 100
+    conc = 1.1 * math.pow(percent, 3)
+    conc += -3.8 * math.pow(percent, 2)
+    conc += 520 * percent 
+    conc += 0.62
+    return conc
+
+dust_filter = Filter()
+
+def dust_handler(ratio):
+    conc = get_dust(ratio)
+    now = datetime.datetime.now()
+    dust_filter.add(conc, now)
+    
+    f_5 = dust_filter.filtered(datetime.timedelta(minutes=5))
+    f_10 = dust_filter.filtered(datetime.timedelta(minutes=10))
+
+    d = { 
+        "dust" : conc,
+        "dust_5" : f_5,
+        "dust_10" : f_10,
+    }
+    return json.dumps(d)
 
 #   General home IoT data
 #
@@ -24,8 +83,12 @@ def iot_handler(path, broker, data):
             topic = "home/pir"
         if jdata.get("subtopic"):
             topic += "/" + jdata["subtopic"]
-    except:
-        pass
+        if jdata.get("dust"):
+            data = dust_handler(float(jdata["dust"]))
+            topic = "home/dust"
+    except Exception, ex:
+        print "ERROR", str(ex)
+        return
     broker.send(topic, data)
 
 #   River level monitor
@@ -166,7 +229,7 @@ def syslog_handler(path, broker, data):
 def weather_handler(path, broker, data):
     # /usr/local/data/weather/2015/06/29.log
     # json data
-    broker.send("home/weather", data)
+    broker.send("home/weather", json.dumps(data))
 
 #
 #
