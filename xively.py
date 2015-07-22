@@ -149,11 +149,13 @@ def on_home_msg(x):
     # move eg. 192.168.0.105 to 05
     if end > 100:
         end -= 100
-    field = "pir_%02d" % end
-    info = ( 
-        ( field, data["temp"], ), 
-    )
-    tx_info("home", info)
+
+    if data.get("temp"):
+        field = "pir_%02d" % end
+        info = ( 
+            ( field, data["temp"], ), 
+        )
+        tx_info("home", info)
 
 def on_gas_msg(x):
     data = json.loads(x.payload)
