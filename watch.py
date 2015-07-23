@@ -251,21 +251,12 @@ handlers = {
     monitor_dir : monitor_handler,
     gas_dir : gas_handler,
     weather_dir : weather_handler,
-    syslog_dir : None, # handled by aliases
+    syslog_dir : None, # handled by syslog handler
 }
 
-def aliases(path):
-    if path == "/var/log":
-        return "/var/log/syslog"
-    return path
-
-def alt_handlers(path):
-    d = {
-        "/var/log/syslog" : syslog_handler,
-    }
-    return d.get(path)
-
 paths = handlers.keys()
+
+handlers["/var/log/syslog"] = syslog_handler
 
 #
 #
@@ -283,7 +274,10 @@ class Handler:
         print tree, str(data)
         handler = handlers.get(tree)
         if handler is None:
-            handler = alt_handlers(tree)
+            handler = handlers.get(path)
+        if not handler:
+            print "No handler for", path
+            return
         handler(path, self.broker, data)
 
     def handle_file_change(self, path):
@@ -295,8 +289,6 @@ class Handler:
             if path.startswith(p):
                 tree = p
                 break
-
-        tree = aliases(tree)
 
         f = self.files.get(tree)
         if not f is None:
