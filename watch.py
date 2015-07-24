@@ -69,6 +69,7 @@ def dust_handler(ratio):
         "dust" : conc,
         "dust_5" : f_5,
         "dust_10" : f_10,
+        "ratio" : ratio,
     }
     return json.dumps(d)
 
