@@ -8,15 +8,24 @@ dust.init(dust_pin)
 
 function get_ratio()
     lo, hi, pulses, bad = dust.read()
+    if bad == 1 then
+        return 0.0
+    end
+    if pulses < 2 then
+        return 0.0
+    end
+    -- print(lo, hi, pulses, bad)
     ratio = lo / (lo + hi)
-    return ratio
+    return ratio / 10.0
 end
 
 function tx_data()
-    tx("wiki/iot.cgp?dust=" .. get_ratio())
+    local r = get_ratio()
+    print (r)
+    tx("wiki/iot.cgp?dust=" .. r)
 end
 
 -- send data every X ms
-tmr.alarm(0, 10000, 1, function() tx_data() end )
+tmr.alarm(0, 30000, 1, function() tx_data() end )
 
 
