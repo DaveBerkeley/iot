@@ -94,6 +94,7 @@ gnuplot = [
     "set xtics rotate by -45",
     "set key off",
     "plot '%s' using 1:2 with lines, '%s' using 1:2 with points" % (opath, opath),
+    "pause mouse keypress",
 ]
 
 if start:
