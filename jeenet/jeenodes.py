@@ -14,6 +14,7 @@ from broker.iot import IoT
 from devices.pir import PirSensor
 from devices.triac import Triac
 from devices.humidity import HumidityDev
+from devices.voltage import VoltageDev
 
 verbose = True
 
@@ -30,7 +31,8 @@ class TestDev(PirSensor):
 
 known_devices = {
     "Test Device v1.0" : TestDev, # TODO
-    "Humidity Device v1.0" : HumidityDev, # TODO
+    "Humidity Device v1.0" : HumidityDev,
+    "Voltage Monitor v1.0" : VoltageDev,
     "Triac Control v1.0" : Triac,
     "PIR Device v1.0" : PirSensor,
 }
