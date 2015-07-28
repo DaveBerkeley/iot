@@ -300,7 +300,11 @@ class Handler:
         newfile = False
         if f is None:
             newfile = True
-            f = open(path, "r")
+            try:
+                f = open(path, "r")
+            except Exception, ex:
+                print "Exception", str(ex)
+                return
             self.files[tree] = f
 
         if newfile and self.seek:
