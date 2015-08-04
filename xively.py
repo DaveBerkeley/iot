@@ -163,6 +163,7 @@ def on_gas_msg(x):
         ( "gas_m3", 1000 * float(data["m3"]), ), 
         ( "gas_sector", data["sector"], ), 
         ( "gas_rate", 1000000 * float(data["rate"]), ), 
+        ( "gas_rot", int(data["rots"]), ), 
     )
     tx_info("gas", info)
 
