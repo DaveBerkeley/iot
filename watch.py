@@ -189,12 +189,18 @@ def gas_handler(path, broker, data):
     hmd = parts[0]
     h, m, d = hmd[:2], hmd[2:4], hmd[4:]
 
+    rots = int(parts[2])
+    sector = int(parts[1])
+
+    s = (64 - sector) / 64.0
+    rots += s
+
     d = {
         "time" : "%s/%s/%s %s%s%s" % (y, m, d, h, m, d),
-        "sector" : parts[1],
-        "rots" : parts[2],
-        "m3" : parts[3],
-        "rate" : parts[4],
+        "sector" : sector,
+        "rots" : rots,
+        "m3" : float(parts[3]),
+        "rate" : float(parts[4]),
     }
 
     broker.send("home/gas", json.dumps(d))
