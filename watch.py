@@ -9,6 +9,7 @@ import socket
 import traceback
 import math
 import datetime
+import re
 
 # see https://pythonhosted.org/watchdog
 from watchdog.observers import Observer
@@ -71,10 +72,12 @@ def dust_handler(ratio):
         "dust_10" : f_10,
         "ratio" : ratio,
     }
-    return json.dumps(d)
+    return d
 
 #   General home IoT data
 #
+
+node_re = re.compile(".*_(\d+)")
 
 def iot_handler(path, broker, data):
     topic = "home"
@@ -83,14 +86,18 @@ def iot_handler(path, broker, data):
         if jdata.get("pir") == "1":
             topic = "home/pir"
         if jdata.get("subtopic"):
-            topic += "/" + jdata["subtopic"]
+            st = jdata["subtopic"]
+            match =  node_re.match(st)
+            if match:
+                jdata["node"] = int(match.groups()[0])
+            topic += "/" + st
         if jdata.get("dust"):
-            data = dust_handler(float(jdata["dust"]))
+            jdata = dust_handler(float(jdata["dust"]))
             topic = "home/dust"
     except Exception, ex:
         print "ERROR", str(ex)
         return
-    broker.send(topic, data)
+    broker.send(topic, json.dumps(jdata))
 
 #   River level monitor
 #
