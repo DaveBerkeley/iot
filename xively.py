@@ -70,17 +70,6 @@ class CosmWriter:
 #
 #
 
-def get_name(topic):
-    parts = topic.split("/")
-    idxs = [ "pir_1", "triac_4", "gateway", "testdev_1", "humiditydev_2" ]
-    for i, name in enumerate(idxs):
-        if name == parts[-1]:
-            return i, name
-    return None, None
-
-#
-#
-
 last_send = {}
 
 def tx_info(name, info):
@@ -108,15 +97,18 @@ def on_jeenet_msg(x):
     if data.get("temp") is None:
         return
 
-    idx, name = get_name(x.topic)
-    if name is None:
-        return
-    info = [ ( str(idx), data["temp"], ), ]
+    topic = x.topic.split("/")[-1]
+    fields = [ "vcc", "temp", "voltage", "humidity" ]
 
-    if data.get("humidity"):
-        info.append(( name, data["humidity"] ))
+    info = []
 
-    tx_info(name, info)
+    for field in fields:
+        d = data.get(field)
+        if not d is None:
+            name = topic + "_" + field
+            info.append((name, d))
+
+    tx_info(topic, info)
 
 def on_net_msg(x):
     data = json.loads(x.payload)
