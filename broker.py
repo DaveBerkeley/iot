@@ -58,7 +58,7 @@ class Broker:
         self.thread.join()
 
     def send(self, topic, data):
-        self.client.publish(topic, data)
+        self.client.publish(topic, data, retain=True)
 
     def subscribe(self, topic, callback):
         self.subscribes[topic] = callback
