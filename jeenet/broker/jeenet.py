@@ -145,6 +145,7 @@ class JeeNodeDev(Device):
         if self.broker:
             self.broker.register("tick", self.on_clock)
         devices[self.dev_id] = self
+        self.dev_known = {}
 
     def on_net(self, node, data):
         assert node == self.dev_id
@@ -189,7 +190,29 @@ class JeeNodeDev(Device):
         raw = struct.pack(self.fmt_header, mid, self.dev_id, mask)
         return mid, raw + args
 
-    def hello(self, flags, msg_id=None, unknown_devs=0):
+    def on_new_device(self, node_name, device):
+        # called when a new device is identified
+        log("on_new_device", node_name, device)
+        dev_id = device.dev_id
+        self.dev_known[dev_id] = True
+        log(self.dev_known)
+
+    def on_unknown_device(self, dev_id, msg):
+        # called when a unknown device is seen
+        log("on_unknown_device", dev_id)
+        if not self.dev_known.get(dev_id):
+            self.dev_known[dev_id] = False
+        log(self.dev_known)
+
+    def get_unknown_devs(self):
+        mask = 0
+        for dev_id, state in self.dev_known.items():
+            if not state:
+                mask |= 1 << dev_id
+        return mask
+
+    def hello(self, flags, msg_id=None):
+        unknown_devs = self.get_unknown_devs()
         fields = [ ( (1<<0), "<L", unknown_devs), ]
         mid, raw = self.make_raw(flags, fields, msg_id)
         if flags & self.ack_flag:
@@ -242,18 +265,12 @@ class Monitor(Device):
         self.event = Event()
         self.waits = []
         self.lock = Lock()
-        self.unknown = 0
-
-    def report_unknown(self, node):
-        log("report unknown", node)
-        self.unknown |= 1 << node
 
     def poll_device(self, device):
         if not hasattr(device, "hello"):
             return
-        log("hello", device.node, "0x%X" % self.unknown)
-        device.hello(device.ack_flag, unknown_devs = self.unknown)
-        self.unknown = 0
+        log("hello", device.node)
+        device.hello(device.ack_flag)
 
     def make_wait(self, now, device):
         period = device.get_poll_period()

@@ -77,8 +77,6 @@ class UnknownHandler:
         info["why"] = info.get("device", "message received")
         self.broker.send("unknown_node_%d" % node, info)
 
-        self.monitor.report_unknown(node)
-
 #
 #
 
@@ -126,6 +124,9 @@ on_new_device(monitor.on_new_device)
 
 # construct the gateway device
 gateway = Gateway(dev_id=31, node="gateway", network=jeenet, broker=broker, verbose=verbose)
+
+on_new_device(gateway.on_new_device)
+jeenet.register(-1, gateway.on_unknown_device)
 
 # open the networks
 jeenet.open()
