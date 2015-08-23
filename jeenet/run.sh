@@ -2,8 +2,8 @@
 
 ./kill.sh jeenodes.py
  
-cp /tmp/jeenodes.log /tmp/jeenodes.log.old
+# cp /tmp/jeenodes.log /tmp/jeenodes.log.old
 
-python -u ./jeenodes.py 2>/tmp/jeenodes.log >/dev/null &
+python -u ./jeenodes.py 2>&1 >/dev/null &
 
 # FIN
