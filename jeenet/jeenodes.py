@@ -15,6 +15,7 @@ from devices.pir import PirSensor
 from devices.triac import Triac
 from devices.humidity import HumidityDev
 from devices.voltage import VoltageDev
+from devices.relay import RelayDev
 
 verbose = True
 
@@ -35,6 +36,7 @@ known_devices = {
     "Voltage Monitor v1.0" : VoltageDev,
     "Triac Control v1.0" : Triac,
     "PIR Device v1.0" : PirSensor,
+    "Relay Device v1.0" : RelayDev,
 }
 
 #

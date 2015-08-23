@@ -211,8 +211,8 @@ class JeeNodeDev(Device):
                 mask |= 1 << dev_id
         return mask
 
-    def hello(self, flags, msg_id=None):
-        unknown_devs = self.get_unknown_devs()
+    def hello(self, flags, msg_id=None, unknown=None):
+        unknown_devs = unknown and self.get_unknown_devs()
         fields = [ ( (1<<0), "<L", unknown_devs), ]
         mid, raw = self.make_raw(flags, fields, msg_id)
         if flags & self.ack_flag:
@@ -270,7 +270,7 @@ class Monitor(Device):
         if not hasattr(device, "hello"):
             return
         log("hello", device.node)
-        device.hello(device.ack_flag)
+        device.hello(device.ack_flag, unknown=True)
 
     def make_wait(self, now, device):
         period = device.get_poll_period()
