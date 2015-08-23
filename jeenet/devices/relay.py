@@ -26,16 +26,15 @@ class RelayDev(JeeNodeDev):
 
         return info
 
-    def x_set_mode(self, mode):
-        assert mode in [ 0, 1, 2 ]
-        log("set mode", mode)
-        fields = [ (1<<0, "<B", mode), ]
+    def set_relay(self, state):
+        assert state in [ 0, 1, ]
+        fields = [ (1<<2, "<B", state), ]
         msg_id, raw = self.make_raw(self.ack_flag, fields)
-        self.tx_message(msg_id, raw, "set_mode", True)
+        self.tx_message(msg_id, raw, "set_state", True)
 
     def get_poll_period(self):
-        return None
+        return 60
 
-    api = JeeNodeDev.api + [ "x_set_mode" ]
+    api = JeeNodeDev.api + [ "set_relay" ]
 
 # FIN
