@@ -232,6 +232,10 @@ def gas_handler(path, broker, data):
 
     broker.send("home/gas", json.dumps(d))
 
+    for key, value in d.items():
+        broker.send("node/gas/" + key, value)
+        
+
 #
 #
 
