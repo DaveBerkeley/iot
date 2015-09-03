@@ -114,6 +114,15 @@ def iot_handler(path, broker, data):
         if jdata.get("dust"):
             jdata = dust_handler(float(jdata["dust"]))
             topic = "home/dust"
+
+        if topic == "home":
+            ip = jdata.get("ipaddr")
+            if ip:
+                parts = ip.split(".")
+                node = parts[-1] # last octet of ipaddr
+                jdata["node"] = node
+                topic += "/node/" + node
+
     except Exception, ex:
         print "ERROR", str(ex)
         return
