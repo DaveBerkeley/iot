@@ -10,6 +10,7 @@ from broker.core import Device, Broker, Clock, log, run_threads, kill_threads, g
 from broker.jeenet import JeeNodeDev, JeeNet, Gateway, message_info, Monitor
 from broker.jsonrpc import JsonRpcServer
 from broker.iot import IoT
+from broker.mqttrpc import MqttRpc
 
 from devices.pir import PirSensor
 from devices.triac import Triac

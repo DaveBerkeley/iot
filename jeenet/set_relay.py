@@ -12,7 +12,7 @@ from broker.core import DeviceProxy
 host = "rpi"
 server = jsonrpclib.Server('http://%s:8888' % host)
 
-meter = DeviceProxy(server, "relaydev_6")
+meter = DeviceProxy(server, "relaydev_7")
 
 r = int(sys.argv[1])
 

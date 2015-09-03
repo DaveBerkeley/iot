@@ -34,7 +34,7 @@ def on_state(x):
 
 mqtt = broker.Broker("uif", server="mosquitto")
 mqtt.subscribe("uif/button/1", on_msg)
-mqtt.subscribe("node/jeenet/7/state", on_state)
+mqtt.subscribe("node/jeenet/7/relay", on_state)
 
 mqtt.start()
 
