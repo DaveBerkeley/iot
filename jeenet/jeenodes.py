@@ -6,11 +6,11 @@ import os
 import datetime
 from threading import Thread
 
-from broker.core import Device, Broker, Clock, log, run_threads, kill_threads, get_device, on_new_device
-from broker.jeenet import JeeNodeDev, JeeNet, Gateway, message_info, Monitor
-from broker.jsonrpc import JsonRpcServer
-from broker.iot import IoT
-from broker.mqttrpc import MqttRpc
+from system.core import Device, Broker, Clock, log, run_threads, kill_threads, get_device, on_new_device
+from system.jeenet import JeeNodeDev, JeeNet, Gateway, message_info, Monitor
+from system.jsonrpc import JsonRpcServer
+from system.iot import IoT
+from system.mqttrpc import MqttRpc
 
 from devices.pir import PirSensor
 from devices.triac import Triac
@@ -134,6 +134,11 @@ jeenet.register(-1, gateway.on_unknown_device)
 # open the networks
 jeenet.open()
 jeenet.reset()
+
+# Add MQTT RPC
+
+rpc = MqttRpc("mosquitto", "rpc/jeenet")
+runners.append(rpc)
 
 # start the threads
 threads = run_threads(runners)
