@@ -179,7 +179,7 @@ mqtt.subscribe("home/net/#", on_net_msg)
 mqtt.subscribe("home/pressure", on_pressure_msg)
 mqtt.subscribe("home/gas", on_gas_msg)
 mqtt.subscribe("home/dust", on_dust_msg)
-mqtt.subscribe("home", on_home_msg)
+mqtt.subscribe("home/node/#", on_home_msg)
 
 mqtt.start()
 
