@@ -74,6 +74,24 @@ def dust_handler(ratio):
     }
     return d
 
+#
+#
+
+def node_handler(node, broker, data):
+    try:
+        jdata = json.loads(data)
+    except ValueError:
+        print "Error reading", data
+        return
+    #print "XX", node, broker, jdata
+
+    for key, value in jdata.items():
+        if key == "subtopic":
+            continue
+        topic = "node/" + str(node) + "/" + key
+        print "\t", topic, value
+        broker.send(topic, str(value))
+
 #   General home IoT data
 #
 
@@ -89,7 +107,9 @@ def iot_handler(path, broker, data):
             st = jdata["subtopic"]
             match =  node_re.match(st)
             if match:
-                jdata["node"] = int(match.groups()[0])
+                node = int(match.groups()[0])
+                jdata["node"] = node
+                node_handler("jeenet/%d" % node, broker, data)
             topic += "/" + st
         if jdata.get("dust"):
             jdata = dust_handler(float(jdata["dust"]))
@@ -211,6 +231,10 @@ def gas_handler(path, broker, data):
     }
 
     broker.send("home/gas", json.dumps(d))
+
+    for key, value in d.items():
+        broker.send("node/gas/" + key, value)
+        
 
 #
 #
