@@ -150,6 +150,8 @@ def rivers_handler(path, broker, data):
         topic = "rivers/level"
 
     broker.send(topic, json.dumps(d))
+    topic += "/" + d["id"]
+    broker.send(topic, json.dumps(d))
 
 #   Smart meter : power usage
 #
