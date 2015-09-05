@@ -50,7 +50,7 @@ class Triac(JeeNodeDev):
         if self.last_set_percent == percent:
             return
 
-        if self.state == "down":
+        if self.state == "0":
             return
 
         power = to_phase(percent)

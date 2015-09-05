@@ -157,10 +157,10 @@ class JeeNodeDev(Device):
         msg_id = info["mid"]
         self.on_message(msg_id)
         self.last_response = time.time()
-        self.set_state("up", "node up", "message received")
+        self.set_state("1", "node up", "message received")
 
     def on_timeout(self, msg):
-        self.set_state("down", "node down", "timeout error")
+        self.set_state("0", "node down", "timeout error")
  
     def on_clock(self, node, info):
         # called in broker thread on regular clock event
@@ -246,7 +246,7 @@ class Gateway(JeeNodeDev):
         return info
 
     def on_timeout(self, msg):
-        self.set_state("down", "node down", "timeout error")
+        self.set_state("0", "node down", "timeout error")
         log("force reconnection and board reset")
         self.s = None
  
