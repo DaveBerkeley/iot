@@ -27,6 +27,16 @@ class MagnetometerDev(JeeNodeDev):
         if not info.get("vcc") is None:
             info["vcc"] /= 1000.0
 
+        if not info.get("gain") is None:
+            # from HMC5883L datasheet, LSB / Gauss
+            axes = [ "x", "y", "z" ]
+            info["raw"] = [ info[axis] for axis in axes ]
+            # Convert x,y,z readings to Gauss.
+            gains = [ 1370, 1090, 820, 660, 440, 390, 330, 230, ]
+            gain = gains[info["gain"]]
+            for field in axes:
+                info[field] /= float(gain)
+
         return info
 
     def get_poll_period(self):
