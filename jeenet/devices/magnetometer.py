@@ -31,11 +31,11 @@ class MagnetometerDev(JeeNodeDev):
             # from HMC5883L datasheet, LSB / Gauss
             axes = [ "x", "y", "z" ]
             info["raw"] = [ info[axis] for axis in axes ]
-            # Convert x,y,z readings to Gauss.
+            # Convert x,y,z readings to milligauss.
             gains = [ 1370, 1090, 820, 660, 440, 390, 330, 230, ]
             gain = gains[info["gain"]]
             for field in axes:
-                info[field] /= float(gain)
+                info[field] /= gain / 1000.0
 
         return info
 
