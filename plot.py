@@ -14,7 +14,7 @@ def hm2s(text):
     return (m*60) + (h*60*60)
 
 p = optparse.OptionParser()
-p.add_option("-f", "--field", dest="field")
+p.add_option("-f", "--field", dest="fields", action="append")
 p.add_option("-s", "--subtopic", dest="subtopic")
 p.add_option("-d", "--day", dest="day")
 p.add_option("-S", "--start", dest="start")
@@ -27,7 +27,7 @@ base = "/usr/local/data/" + opts.log
 
 day = opts.day
 subtopic = opts.subtopic
-field = opts.field
+fields = opts.fields
 
 start, end = opts.start, opts.end
 if start:
@@ -75,15 +75,21 @@ for line in file(path):
     if data.get("subtopic") != subtopic:
         if data.get("ipaddr") != subtopic:
             continue
-    if data.get(field) is None:
-        continue
+    #if data.get(field) is None:
+    #    continue
 
-    keys = [ "time", field ]
+    keys = [ "time", ] + fields
     tt = data["time"]
     ymd, hms = tt.split(" ")
     print >> ofile, hms,
-    print >> ofile, data[field],
+    for field in fields:
+        print >> ofile, data.get(field, ""),
     print >> ofile
+
+plot = "plot '%s' using 1:2 with points" % opath
+
+for idx, field in enumerate(fields[1:]):
+    plot += ", '' using 1:%d with points" % (idx+3)
 
 gnuplot = [
     "set xdata time",
@@ -93,9 +99,11 @@ gnuplot = [
     "set xlabel 'time'",
     "set xtics rotate by -45",
     "set key off",
-    "plot '%s' using 1:2 with lines, '%s' using 1:2 with points" % (opath, opath),
+    plot,
     "pause mouse keypress",
 ]
+
+#print gnuplot
 
 if start:
     if end:
