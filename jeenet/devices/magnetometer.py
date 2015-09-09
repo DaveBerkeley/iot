@@ -16,6 +16,7 @@ class MagnetometerDev(JeeNodeDev):
             (1<<3, "x", "<h"),
             (1<<4, "y", "<h"),
             (1<<5, "z", "<h"),
+            (1<<6, "gain", "<B"),
             (self.text_flag, "text", "p"),
         ]
 
