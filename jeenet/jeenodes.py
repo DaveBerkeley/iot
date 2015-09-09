@@ -17,6 +17,7 @@ from devices.triac import Triac
 from devices.humidity import HumidityDev
 from devices.voltage import VoltageDev
 from devices.relay import RelayDev
+from devices.magnetometer import MagnetometerDev
 
 verbose = True
 
@@ -38,6 +39,7 @@ known_devices = {
     "Triac Control v1.0" : Triac,
     "PIR Device v1.0" : PirSensor,
     "Relay Device v1.0" : RelayDev,
+    "Magnetometer v1.0" : MagnetometerDev,
 }
 
 #
