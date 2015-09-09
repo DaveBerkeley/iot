@@ -94,11 +94,11 @@ def on_jeenet_msg(x):
     data = json.loads(x.payload)
     #log(data)
 
-    if data.get("temp") is None:
-        return
+    #if data.get("temp") is None:
+    #    return
 
     topic = x.topic.split("/")[-1]
-    fields = [ "vcc", "temp", "voltage", "humidity" ]
+    fields = [ "vcc", "temp", "voltage", "humidity", "x", "y,", "z" ]
 
     info = []
 
@@ -108,7 +108,8 @@ def on_jeenet_msg(x):
             name = topic + "_" + field
             info.append((name, d))
 
-    tx_info(topic, info)
+    if len(info):
+        tx_info(topic, info)
 
 def on_net_msg(x):
     data = json.loads(x.payload)

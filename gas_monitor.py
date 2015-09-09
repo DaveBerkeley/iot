@@ -89,6 +89,7 @@ class Average:
         bt, b = self.data[-1]
         dv = b - a
         dt = (bt - at).total_seconds()
+        dt * 3600
         if not dt:
             return 0
         return dv / dt
@@ -126,6 +127,8 @@ if __name__ == "__main__":
     f = None
     filt = Filter(opts.sectors)
     rotations = opts.index
+    last_diff = None
+    next_t = None
 
     def parse(line):
         line = line.strip()
@@ -183,9 +186,23 @@ if __name__ == "__main__":
         rot = this_rot + (rotations * opts.rotation)
         average.add(now, rot)
 
-        # log any changes, check for rotations
+        logit = False
+        diff = average.diff()
+
+        if next_t is None:
+            next_t = now + datetime.timedelta(minutes=1, seconds=1)
+
+        if now > next_t:
+            next_t = None
+            logit = True
+
         if value != last_sector:
+            logit = True
+
+        if logit:
+            #if value != last_sector:
+            next_t = now + datetime.timedelta(minutes=1, seconds=1)
             last_sector = value
-            save_to_log(f, hm, value, rotations, rot, average.diff())
+            save_to_log(f, hm, value, rotations, rot, diff)
 
 # FIN
