@@ -98,7 +98,7 @@ def on_jeenet_msg(x):
     #    return
 
     topic = x.topic.split("/")[-1]
-    fields = [ "vcc", "temp", "voltage", "humidity", "x", "y,", "z" ]
+    fields = [ "vcc", "temp", "voltage", "humidity", "x", "y", "z" ]
 
     info = []
 
