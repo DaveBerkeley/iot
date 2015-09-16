@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import sys
+import os
 import time
 import datetime
 import json
@@ -26,6 +27,8 @@ def log(*args):
 
 p = "/usr/local/data/music/Misc/venus.mp3"
 
+base = "/usr/local/data/music"
+
 class Player:
 
     def __init__(self):
@@ -34,29 +37,25 @@ class Player:
         self.length = 0
         self.p = mplayer.Player()
 
-    def on_mqtt(self, x):
-        data = json.loads(x.payload)
-        print data
-        if data == "stop":
-            self.p.stop()
-            self.status = data
-            self.posn = 0
-        elif data == "play":
-            self.play(p)
-            self.status = data
-        elif data == "pause":
-            if self.status == "play":
-                self.posn = self.p.time_pos
-                self.length = self.p.length
-                self.p.stop()
-                self.status = "pause"
-            else:
-                self.play(p)
-                self.p.time_pos = self.posn
-                self.status = "play"
+    def stop(self):
+        self.p.stop()
+        self.status = "stop"
+        self.posn = 0
 
-        elif data == "dir":
-            print dir(self.p)
+    def play(self):
+        self.play_file(p)
+        self.status = "play"
+
+    def pause(self):
+        if self.status == "play":
+            self.posn = self.p.time_pos
+            self.length = self.p.length
+            self.p.stop()
+            self.status = "pause"
+        else:
+            self.play_file(p)
+            self.p.time_pos = self.posn
+            self.status = "play"
 
     def get_status(self):
         if self.p.length:
@@ -73,9 +72,21 @@ class Player:
             "speed" : self.p.speed,
             "percent" : int(pc),
         }
-        return json.dumps(d)
+        return d
 
-    def play(self, path):
+    def on_mqtt(self, x):
+        data = json.loads(x.payload)
+        print data
+        if data == "stop":
+            self.stop()
+        elif data == "play":
+            self.play()
+        elif data == "pause":
+            self.pause()
+        elif data == "dir":
+            print dir(self.p)
+
+    def play_file(self, path):
         self.p.loadfile(path)
 
 #
@@ -96,7 +107,7 @@ while True:
     try:
         time.sleep(1)
         status = player.get_status()
-        mqtt.send(topic, status)
+        mqtt.send(topic, json.dumps(status))
     except KeyboardInterrupt:
         log("irq")
         break
