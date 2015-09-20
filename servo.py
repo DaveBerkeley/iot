@@ -13,18 +13,21 @@ import serial
 
 s = serial.Serial("/dev/nano_2-1_1", 9600)
 
+topic = sys.argv[1]
 field = None
-topic = "uif/seek/1"
+
+#topic = "uif/seek/1"
 #topic = "node/gas/sector"
 
-topic = "home/power"
-field = "power"
+if topic == "home/power":
+    field = "power"
 
 def translate(p):
     return int(p)
 
 def r_translate(p, minx, maxx):
     d = maxx - minx
+    p = min(maxx, max(minx, p))
     p -= minx
     p /=  d
     p *= 180
