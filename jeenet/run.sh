@@ -4,6 +4,6 @@
  
 # cp /tmp/jeenodes.log /tmp/jeenodes.log.old
 
-python ./jeenodes.py 2>/dev/null >/dev/null &
+python ./jeenodes.py -im 2>/dev/null >/dev/null &
 
 # FIN

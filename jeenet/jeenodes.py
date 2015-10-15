@@ -3,6 +3,7 @@
 import time
 import sys
 import os
+import optparse
 import datetime
 from threading import Thread
 
@@ -19,7 +20,20 @@ from devices.voltage import VoltageDev
 from devices.relay import RelayDev
 from devices.magnetometer import MagnetometerDev
 
-verbose = True
+arduino = "/dev/arduino"
+if not os.path.exists(arduino):
+    arduino = "/dev/ttyACM0"
+
+p = optparse.OptionParser()
+p.add_option("-d", "--device", dest="device", default=arduino)
+p.add_option("-v", "--verbose", dest="verbose", action="store_true")
+p.add_option("-i", "--iot", dest="iot", action="store_true")
+p.add_option("-m", "--mqtt", dest="mqtt")
+opts, args = p.parse_args()
+print opts, args
+
+dev = opts.device
+verbose = opts.verbose
 
 #
 #
@@ -85,15 +99,6 @@ class UnknownHandler:
 #
 #
 
-if len(sys.argv) > 1:
-    dev = sys.argv[1]
-else:
-    arduino = "/dev/arduino"
-    if os.path.exists(arduino):
-        dev = arduino
-    else:
-        dev = "/dev/ttyACM0"
-
 runners = []
 
 # make a jeenet reader
@@ -117,14 +122,16 @@ runners.append(monitor)
 unknown = UnknownHandler(jeenet, broker, monitor)
 jeenet.register(-1, unknown.on_device)
 
-iot = IoT(name="iot", broker=broker, server="klatu")
-runners.append(iot)
+if opts.iot:
+    iot = IoT(name="iot", broker=broker, server="klatu")
+    runners.append(iot)
 
-# Need a way of adding devices to IoT reporting
-def report_to_iot(node, dev):
-    iot.forward(dev.node)
+    # Need a way of adding devices to IoT reporting
+    def report_to_iot(node, dev):
+        iot.forward(dev.node)
 
-on_new_device(report_to_iot)
+    on_new_device(report_to_iot)
+
 on_new_device(monitor.on_new_device)
 
 # construct the gateway device
@@ -139,8 +146,9 @@ jeenet.reset()
 
 # Add MQTT RPC
 
-rpc = MqttRpc("mosquitto", "rpc/jeenet")
-runners.append(rpc)
+if opts.mqtt:
+    rpc = MqttRpc(opts.mqtt, "rpc/jeenet")
+    runners.append(rpc)
 
 # start the threads
 threads = run_threads(runners)
