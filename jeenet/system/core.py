@@ -149,6 +149,7 @@ class Device:
         self.last_response = None
         self.state = None
         self.killed = False
+        self.is_sleepy = False
 
         # run any 'on new device' code
         for handler in on_new_handlers:
