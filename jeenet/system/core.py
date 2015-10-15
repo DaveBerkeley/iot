@@ -205,7 +205,8 @@ class Device:
         msg = self.make_msg(msg_name, msg_id, raw)
         if replace:
             self.clear_messages(name=msg_name)
-        self.add_message(msg)
+        if not self.is_sleepy:
+            self.add_message(msg)
         self.tx(raw)
 
     def poll_messages(self, now):
