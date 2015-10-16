@@ -285,6 +285,8 @@ class Monitor(Device):
     def poll_device(self, device):
         if not hasattr(device, "hello"):
             return
+        if device.is_sleepy:
+            return
         log("hello", device.node)
         device.hello(device.ack_flag, unknown=True)
 
