@@ -250,7 +250,10 @@ class Gateway(JeeNodeDev):
         JeeNodeDev.__init__(self, *args, **kwargs)
 
     def to_info(self, data):
-        fields = [ (1<<0, "temp", "<H") ]
+        fields = [ 
+            (1<<0, "temp", "<H"),
+            (1<<1, "packets", "<B"),
+        ]
         msg_id, flags, info = message_info(data, self.fmt_header, fields)
 
         if not info.get("temp") is None:
