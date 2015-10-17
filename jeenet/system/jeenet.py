@@ -7,6 +7,10 @@ from threading import Event, Lock
 from core import Reader, Device, log, Message
 import bencode
 
+# see https://github.com/pyserial/pyserial/issues/17
+# Bug in Ubuntu kernel Oct-2015
+from serial import PosixPollSerial as Serial
+
 #
 #   Message decode
 
@@ -100,7 +104,7 @@ class JeeNet(Reader):
                 return c
 
     def open(self):
-        self.s = serial.Serial(self.dev, self.baud, timeout=1)
+        self.s = Serial(self.dev, self.baud, timeout=1)
 
     def tx(self, node, data):
         if self.verbose:
@@ -211,9 +215,20 @@ class JeeNodeDev(Device):
                 mask |= 1 << dev_id
         return mask
 
+    def get_sleepy_devs(self):
+        mask = 0
+        for dev_id, dev in devices.items():
+            if dev.is_sleepy:
+                mask |= 1 << dev_id
+        return mask
+
     def hello(self, flags, msg_id=None, unknown=None):
         unknown_devs = unknown and self.get_unknown_devs()
-        fields = [ ( (1<<0), "<L", unknown_devs), ]
+        sleepy_devs = self.get_sleepy_devs()
+        fields = [ 
+            ( (1<<0), "<L", unknown_devs), 
+            ( (1<<1), "<L", sleepy_devs), 
+        ]
         mid, raw = self.make_raw(flags, fields, msg_id)
         if flags & self.ack_flag:
             msg = self.make_msg("hello", mid, raw)
@@ -235,7 +250,10 @@ class Gateway(JeeNodeDev):
         JeeNodeDev.__init__(self, *args, **kwargs)
 
     def to_info(self, data):
-        fields = [ (1<<0, "temp", "<H") ]
+        fields = [ 
+            (1<<0, "temp", "<H"),
+            (1<<1, "packets", "<B"),
+        ]
         msg_id, flags, info = message_info(data, self.fmt_header, fields)
 
         if not info.get("temp") is None:
@@ -259,6 +277,7 @@ class Gateway(JeeNodeDev):
 class Monitor(Device):
 
     def __init__(self, *args, **kwargs):
+        log("WARNING : Disable Serial Polling !!!!!!!!!!!!!")
         Device.__init__(self, *args, **kwargs)
         self.period = kwargs["period"]
         self.dead_time = kwargs["dead_time"]
@@ -268,6 +287,8 @@ class Monitor(Device):
 
     def poll_device(self, device):
         if not hasattr(device, "hello"):
+            return
+        if device.is_sleepy:
             return
         log("hello", device.node)
         device.hello(device.ack_flag, unknown=True)

@@ -149,6 +149,7 @@ class Device:
         self.last_response = None
         self.state = None
         self.killed = False
+        self.is_sleepy = False
 
         # run any 'on new device' code
         for handler in on_new_handlers:
@@ -204,7 +205,8 @@ class Device:
         msg = self.make_msg(msg_name, msg_id, raw)
         if replace:
             self.clear_messages(name=msg_name)
-        self.add_message(msg)
+        if not self.is_sleepy:
+            self.add_message(msg)
         self.tx(raw)
 
     def poll_messages(self, now):
