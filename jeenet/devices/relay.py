@@ -1,13 +1,51 @@
 
+from system.core import log
 from system.jeenet import JeeNodeDev, message_info
 
 #
 #
 
-class RelayDev(JeeNodeDev):
+FLASH_FLAG = 0x800
+
+# Flash Commands
+FLASH_INFO_REQ = 1
+FLASH_INFO = 2
+FLASH_CLEAR = 3
+FLASH_CLEARED = 4
+FLASH_WRITE = 5
+FLASH_WRITTEN = 6
+FLASH_CRC_REQ = 7
+FLASH_CRC = 8
+FLASH_READ_REQ = 9
+FLASH_READ = 10
+FLASH_REBOOT = 11
+
+#
+#
+
+class FlashInterface:
+
+    def __init__(self, *args, **kwargs):
+        self.api = RelayDev.api + self.flash_api
+
+    def flash_req_info(self):
+        log("flashreq_info")
+        fields = [ (FLASH_FLAG, "<B", FLASH_INFO_REQ), ]
+        msg_id, raw = self.make_raw(self.ack_flag, fields)
+        log(`raw`)
+        self.tx_message(msg_id, raw, "flash_req_info", True)
+
+    flash_api = [ "flash_req_info" ]
+
+#
+#
+
+class RelayDev(JeeNodeDev,FlashInterface):
 
     def __init__(self, *args, **kwargs):
         JeeNodeDev.__init__(self, *args, **kwargs)
+        FlashInterface.__init__(self, *args, **kwargs)
+        self.is_sleepy = True # not really
 
     def to_info(self, data):
         rx_fields = [ 
