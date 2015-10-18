@@ -9,7 +9,8 @@ import bencode
 
 # see https://github.com/pyserial/pyserial/issues/17
 # Bug in Ubuntu kernel Oct-2015
-from serial import PosixPollSerial as Serial
+#from serial import PosixPollSerial as Serial
+from serial import Serial as Serial
 
 #
 #   Message decode
@@ -277,7 +278,7 @@ class Gateway(JeeNodeDev):
 class Monitor(Device):
 
     def __init__(self, *args, **kwargs):
-        log("WARNING : Disable Serial Polling !!!!!!!!!!!!!")
+        #log("WARNING : Disable Serial Polling !!!!!!!!!!!!!")
         Device.__init__(self, *args, **kwargs)
         self.period = kwargs["period"]
         self.dead_time = kwargs["dead_time"]
