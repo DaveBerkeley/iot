@@ -1,5 +1,6 @@
 
 import struct 
+import base64
 
 from system.core import log
 from system.jeenet import JeeNodeDev, message_info
@@ -26,7 +27,7 @@ FLASH_REBOOT = 11
 class FlashInterface:
 
     def __init__(self, *args, **kwargs):
-        self.api = RelayDev.api + self.flash_api
+        self.api = self.api + self.flash_api
 
     # Individual FLASH command handlers (radio->host)
 
@@ -109,11 +110,13 @@ class FlashInterface:
     def flash_reboot(self):
         self.flash_cmd(FLASH_REBOOT, "flash_reboot", [])
 
-    def flash_write(self, addr, data):
+    def flash_write(self, addr, data, as64=False):
         fields = [ 
             (self.flash_flag, "<H", addr), 
             (self.flash_flag, "<H", len(data)),
         ]
+        if (as64):
+            data = base64.b64decode(data)
         self.flash_cmd(FLASH_WRITE, "flash_write", fields, data)
 
     def flash_read_req(self, addr, bytes):
