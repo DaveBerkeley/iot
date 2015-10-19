@@ -28,13 +28,30 @@ class FlashInterface:
     def __init__(self, *args, **kwargs):
         self.api = RelayDev.api + self.flash_api
 
-    def cmd_info(self, mid, data):
-        info = {
-            "mid" : mid,
-            "test" : "hello",
-        }
+    # Individual FLASH command handlers (radio->host)
+
+    def cmd_info(self, info, data):
+        blocks, size = struct.unpack("<HH", data)
+        info["flash"] = { "cmd" : "info", "blocks" : blocks, "size" : size }
         return info
 
+    def cmd_cleared(self, info, data):
+        block, = struct.unpack("<H", data)
+        info["flash"] = { "cmd" : "cleared", "block" : block }
+        return info
+
+    def cmd_crc(self, info, data):
+        block, crc = struct.unpack("<HH", data)
+        info["flash"] = { "cmd" : "crc", "block" : block, "crc" : crc }
+        return info
+
+    def cmd_written(self, info, data):
+        addr, size = struct.unpack("<HH", data)
+        info["flash"] = { "cmd" : "written", "addr" : addr, "size" : size }
+        return info
+
+    # high level data extractor.
+    # called by JeeNodeDev when cracking message.
     def flash_to_info(self, data):
         hsize = struct.calcsize(self.fmt_header)
         hdr, payload = data[:hsize], data[hsize:]
@@ -46,23 +63,60 @@ class FlashInterface:
         log("flash_cmd", cmd)
 
         handlers = {
-            FLASH_INFO  :   self.cmd_info,
+            # Add command handlers here
+            FLASH_INFO      :   self.cmd_info,
+            FLASH_CLEARED   :   self.cmd_cleared,
+            FLASH_CRC       :   self.cmd_crc,
+            FLASH_WRITTEN   :   self.cmd_written,
         }
 
-        def nowt(mid, data):
-            return { "mid" : mid }
+        info = { "mid" : mid }
+
+        def nowt(info, data):
+            info["flash"] = "not implemented"
+            return info
 
         fn = handlers.get(cmd, nowt)
-        return fn(mid, data)
+        return fn(info, payload[1:])
 
-    def flash_req_info(self):
-        log("flashreq_info")
-        fields = [ (self.flash_flag, "<B", FLASH_INFO_REQ), ]
-        msg_id, raw = self.make_raw(self.ack_flag, fields)
-        #log(`raw`)
-        self.tx_message(msg_id, raw, "flash_req_info", True)
+    #   FLASH commands (host->radio)
 
-    flash_api = [ "flash_req_info" ]
+    def flash_cmd(self, cmd, name, fields):
+        log(name)
+        f = [ (self.flash_flag, "<B", cmd), ]
+        f += fields
+        msg_id, raw = self.make_raw(self.ack_flag, f)
+        self.tx_message(msg_id, raw, name, True)
+
+    def flash_info_req(self):
+        self.flash_cmd(FLASH_INFO_REQ, "flash_info_req", [])
+
+    def flash_clear(self, block):
+        fields = [ (0, "<H", block), ]
+        self.flash_cmd(FLASH_CLEAR, "flash_clear", fields)
+
+    def flash_crc_req(self, block):
+        fields = [ (0, "<H", block), ]
+        self.flash_cmd(FLASH_CRC_REQ, "flash_crc_req", fields)
+
+    def flash_reboot(self):
+        self.flash_cmd(FLASH_REBOOT, "flash_reboot", [])
+
+    def flash_write(self, addr, data):
+        fields = [ 
+            (0, "<H", addr), 
+            (0, "<H", len(data)),
+            (0, "p", data),
+        ]
+        self.flash_cmd(FLASH_WRITE, "flash_write", fields)
+
+    flash_api = [ 
+        "flash_info_req",
+        "flash_clear",
+        "flash_crc_req",
+        "flash_reboot",
+        "flash_write",
+    ]
 
 #
 #
