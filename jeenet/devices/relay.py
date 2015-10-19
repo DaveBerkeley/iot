@@ -10,8 +10,8 @@ from system.jeenet import JeeNodeDev, message_info
 # Flash Commands
 FLASH_INFO_REQ = 1
 FLASH_INFO = 2
-FLASH_CLEAR = 3
-FLASH_CLEARED = 4
+#FLASH_CLEAR = 3
+#FLASH_CLEARED = 4
 FLASH_WRITE = 5
 FLASH_WRITTEN = 6
 FLASH_CRC_REQ = 7
@@ -35,19 +35,20 @@ class FlashInterface:
         info["flash"] = { "cmd" : "info", "blocks" : blocks, "size" : size }
         return info
 
-    def cmd_cleared(self, info, data):
-        block, = struct.unpack("<H", data)
-        info["flash"] = { "cmd" : "cleared", "block" : block }
-        return info
-
     def cmd_crc(self, info, data):
-        block, crc = struct.unpack("<HH", data)
-        info["flash"] = { "cmd" : "crc", "block" : block, "crc" : crc }
+        addr, size, crc = struct.unpack("<HHH", data)
+        info["flash"] = { "cmd" : "crc", "addr" : addr, "size" : size, "crc" : crc }
         return info
 
     def cmd_written(self, info, data):
         addr, size = struct.unpack("<HH", data)
         info["flash"] = { "cmd" : "written", "addr" : addr, "size" : size }
+        return info
+
+    def cmd_read(self, info, data):
+        # TODO : fix variable length fields
+        addr, size = struct.unpack("<HH", data)
+        info["flash"] = { "cmd" : "read", "addr" : addr, "size" : size }
         return info
 
     # high level data extractor.
@@ -65,9 +66,9 @@ class FlashInterface:
         handlers = {
             # Add command handlers here
             FLASH_INFO      :   self.cmd_info,
-            FLASH_CLEARED   :   self.cmd_cleared,
             FLASH_CRC       :   self.cmd_crc,
             FLASH_WRITTEN   :   self.cmd_written,
+            FLASH_READ      :   self.cmd_read,
         }
 
         info = { "mid" : mid }
@@ -79,24 +80,30 @@ class FlashInterface:
         fn = handlers.get(cmd, nowt)
         return fn(info, payload[1:])
 
-    #   FLASH commands (host->radio)
+    #   Send FLASH command to radio
 
-    def flash_cmd(self, cmd, name, fields):
+    def flash_cmd(self, cmd, name, fields, payload=""):
         log(name)
         f = [ (self.flash_flag, "<B", cmd), ]
         f += fields
         msg_id, raw = self.make_raw(self.ack_flag, f)
+        # JsonRpc will convert strings to unicode!
+        # so turn them back into bytes.
+        payload = bytes(payload)
+        raw += payload
+        #log("flash_cmd", [ str(x) for x in raw ])
         self.tx_message(msg_id, raw, name, True)
+
+    #   FLASH commands (host->radio)
 
     def flash_info_req(self):
         self.flash_cmd(FLASH_INFO_REQ, "flash_info_req", [])
 
-    def flash_clear(self, block):
-        fields = [ (0, "<H", block), ]
-        self.flash_cmd(FLASH_CLEAR, "flash_clear", fields)
-
-    def flash_crc_req(self, block):
-        fields = [ (0, "<H", block), ]
+    def flash_crc_req(self, addr, size):
+        fields = [ 
+            (self.flash_flag, "<H", addr), 
+            (self.flash_flag, "<H", size), 
+        ]
         self.flash_cmd(FLASH_CRC_REQ, "flash_crc_req", fields)
 
     def flash_reboot(self):
@@ -104,18 +111,24 @@ class FlashInterface:
 
     def flash_write(self, addr, data):
         fields = [ 
-            (0, "<H", addr), 
-            (0, "<H", len(data)),
-            (0, "p", data),
+            (self.flash_flag, "<H", addr), 
+            (self.flash_flag, "<H", len(data)),
         ]
-        self.flash_cmd(FLASH_WRITE, "flash_write", fields)
+        self.flash_cmd(FLASH_WRITE, "flash_write", fields, data)
+
+    def flash_read_req(self, addr, bytes):
+        fields = [ 
+            (self.flash_flag, "<H", addr), 
+            (self.flash_flag, "<H", bytes),
+        ]
+        self.flash_cmd(FLASH_READ_REQ, "flash_read_req", fields)
 
     flash_api = [ 
         "flash_info_req",
-        "flash_clear",
         "flash_crc_req",
         "flash_reboot",
         "flash_write",
+        "flash_read_req",
     ]
 
 #
