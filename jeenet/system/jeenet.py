@@ -33,7 +33,10 @@ def decode_message(data, header, fields):
                 length += 1
             else:
                 length = struct.calcsize(field)
-                d, = struct.unpack(field, data[:length])
+                if len(field) > 2:
+                    d = struct.unpack(field, data[:length])
+                else:
+                    d, = struct.unpack(field, data[:length])
             data = data[length:]
             result.append(d)
         else:
@@ -253,7 +256,7 @@ class Gateway(JeeNodeDev):
     def to_info(self, data):
         fields = [ 
             (1<<0, "temp", "<H"),
-            (1<<1, "packets", "<B"),
+            (1<<1, "packets", "<BH"),
         ]
         msg_id, flags, info = message_info(data, self.fmt_header, fields)
 
