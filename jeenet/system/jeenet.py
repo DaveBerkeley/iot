@@ -33,10 +33,10 @@ def decode_message(data, header, fields):
                 length += 1
             else:
                 length = struct.calcsize(field)
-                if len(field) > 2:
-                    d = struct.unpack(field, data[:length])
-                else:
-                    d, = struct.unpack(field, data[:length])
+                d = struct.unpack(field, data[:length])
+                if len(d) == 1:
+                    d = d[0]
+
             data = data[length:]
             result.append(d)
         else:
@@ -47,8 +47,8 @@ def decode_message(data, header, fields):
 
     return msg_id, flags, result
 
-def message_info(data, header, fields):
-    msg_id, flags, data = decode_message(data, header, fields)
+def message_info(packet, header, fields):
+    msg_id, flags, data = decode_message(packet, header, fields)
     info = { "mid" : msg_id }
 
     for (mask, name, fmt), value in zip(*[ fields, data ]):
@@ -145,6 +145,7 @@ class JeeNodeDev(Device):
     ack_flag   = 0x8000
     admin_flag = 0x4000
     text_flag  = 0x2000
+    flash_flag = 0x0800
 
     def __init__(self, *args, **kwargs):
         Device.__init__(self, *args, **kwargs)
@@ -157,8 +158,11 @@ class JeeNodeDev(Device):
 
     def on_net(self, node, data):
         assert node == self.dev_id
-        info = self.to_info(data)
-        #log("J on_net", node, info)
+        info = None
+        if hasattr(self, "flash_to_info"):
+            info = self.flash_to_info(data)
+        if info is None:
+            info = self.to_info(data)
         # tell the broker
         self.report(info)    
         # let the device know the message has been rxd
