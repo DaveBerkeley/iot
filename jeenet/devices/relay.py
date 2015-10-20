@@ -20,6 +20,7 @@ FLASH_CRC = 8
 FLASH_READ_REQ = 9
 FLASH_READ = 10
 FLASH_REBOOT = 11
+FLASH_SET_FAST_POLL = 12
 
 #
 #
@@ -136,12 +137,19 @@ class FlashInterface:
         ]
         self.flash_cmd(FLASH_READ_REQ, "flash_read_req", fields)
 
+    def flash_fast_poll(self, state):
+        fields = [ 
+            (self.flash_flag, "<B", state), 
+        ]
+        self.flash_cmd(FLASH_SET_FAST_POLL, "flash_fast_poll", fields)
+
     flash_api = [ 
         "flash_info_req",
         "flash_crc_req",
         "flash_reboot",
         "flash_write",
         "flash_read_req",
+        "flash_fast_poll",
     ]
 
 #
