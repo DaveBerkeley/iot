@@ -5,6 +5,7 @@ import json
 import time
 import base64
 import httplib
+import optparse
 
 # https://github.com/joshmarshall/jsonrpclib
 import jsonrpclib
@@ -27,7 +28,7 @@ class Xfer:
 
     INFO, DEAD, WRITE = "INFO", "DEAD", "WRITE"
 
-    def __init__(self, device, addr, data):
+    def __init__(self, device, addr, data, verbose=False):
         self.device = device
         self.start_addr = addr
         self.data = data
@@ -37,6 +38,7 @@ class Xfer:
         self.retry_time = 60 # s
         self.blocks = []
         self.progress = 0, 0
+        self.verbose = verbose
         self.set_state(self.INFO)
 
     class Block:
@@ -73,12 +75,10 @@ class Xfer:
         print "set_state", state
         if state == self.INFO:
             self.count = 0
-            for i in range(8):
-                def fn():
-                    self.device.flash_info_req()
-                self.tx(fn, force=True)
-                def fn():
-                    self.device.flash_fast_poll(0)
+            def fn():
+                self.device.flash_info_req()
+                self.device.flash_fast_poll(1)
+            for i in range(4):
                 self.tx(fn, force=True)
 
         elif state == self.WRITE:
@@ -102,6 +102,8 @@ class Xfer:
         print "tick", "%d/%d" % self.progress
         if self.state == self.DEAD:
             def fn():
+                if self.verbose:
+                    print "flash_fast_poll(0)"
                 self.device.flash_fast_poll(0)
             self.tx(fn, force=True)
             raise Dead()
@@ -124,7 +126,8 @@ class Xfer:
         a, b = self.progress
         self.progress = a + 1, b
         del self.blocks[idx]
-        print "Completed", block
+        if self.verbose:
+            print "Completed", block
 
     # Message response handlers
 
@@ -140,7 +143,8 @@ class Xfer:
 
     def cmd_crc(self, info):
         crc = info.get("crc", 0)
-        print "crc(%s,%s) %04X" % (info.get("addr"), info.get("size"), crc)
+        if self.verbose:
+            print "crc(%s,%s) %04X" % (info.get("addr"), info.get("size"), crc)
         addr = info.get("addr", -1)
         block = self.find_block(addr)
         if not block:
@@ -153,7 +157,8 @@ class Xfer:
             self.block_done(block)
 
     def cmd_written(self, info):
-        print "cmd_written", info
+        if self.verbose:
+            print "cmd_written", info
         addr = info.get("addr", -1)
         block = self.find_block(addr)
         if not block:
@@ -162,7 +167,8 @@ class Xfer:
         if block.crc == info.get("crc", -1):
             self.block_done(block)
         else:
-            block.sent = 0
+            print "Bad CRC", block
+            #block.sent = 0
 
     def crc_req(self, block):
         def fn():
@@ -175,7 +181,8 @@ class Xfer:
     #
 
     def init_write(self):
-        print "init_write"
+        if self.verbose:
+            print "init_write"
         self.blocks = []
         size = min(self.size, self.packet_size)
         for addr in range(0, len(self.data), size):
@@ -188,7 +195,8 @@ class Xfer:
         self.progress = 0, len(self.blocks)
 
     def send(self, block):
-        print "send", block, self.avail
+        if self.verbose:
+            print "send", block, self.avail
         # do write
         def fn():
             self.device.flash_write(block.addr, block.data, True)            
@@ -201,6 +209,9 @@ class Xfer:
         #print "write"
         blocks = []
         now = time.time()
+        retry = self.retry_time
+        if len(self.blocks) < self.avail:
+            retry = 10
         for block in self.blocks:
             if block.state == self.Block.CHECKING:
                 if (block.sent + self.retry_time) < now:
@@ -208,7 +219,7 @@ class Xfer:
                 continue
 
             if block.state == self.Block.SENDING:
-                if (block.sent + self.retry_time) > now:
+                if (block.sent + retry) > now:
                     continue
                 blocks.append((block.sent, block))
         blocks.sort() # in time order
@@ -218,7 +229,8 @@ class Xfer:
                 self.send(block)
 
     def on_avail(self, avail, size):
-        print "on_avail", avail, size
+        if self.verbose:
+            print "on_avail", avail, size
         self.avail = avail
         self.size = size
 
@@ -255,22 +267,38 @@ class Xfer:
 #
 #
 
-host = "pi2"
-server = jsonrpclib.Server('http://%s:8888' % host)
+p = optparse.OptionParser()
+p.add_option("-j", "--json", dest="json", default="jeenet")
+p.add_option("-m", "--mqtt", dest="mqtt", default="mosquitto")
+p.add_option("-d", "--dev", dest="dev")
+p.add_option("-a", "--addr", dest="addr", type="int")
+p.add_option("-v", "--verbose", dest="verbose", action="store_true")
+p.add_option("-f", "--file", dest="file")
 
-device = DeviceProxy(server, "relaydev_7")
+opts, args = p.parse_args()
+print opts, args
 
-data = "Hello World!"
+jsonserver = opts.json
+devname = opts.dev
+mqttserver = opts.mqtt
+addr = opts.addr
+verbose = opts.verbose
+name = opts.file
 
-if len(sys.argv) > 1:
-    name = sys.argv[1]
-    f = open(name)
-    data = f.read()
+assert name, "must specify file"
+assert devname, "must specify device name"
+assert not addr is None, "must specify address"
 
-xfer = Xfer(device, 80 * 1024L, data)
+server = jsonrpclib.Server('http://%s:8888' % jsonserver)
+device = DeviceProxy(server, devname)
 
-mqtt = broker.Broker("uif", server="mosquitto")
-mqtt.subscribe("home/jeenet/relaydev_7", xfer.on_device)
+f = open(name)
+data = f.read()
+
+xfer = Xfer(device, addr, data, verbose=verbose)
+
+mqtt = broker.Broker("flash_file_" + time.ctime(), server=mqttserver)
+mqtt.subscribe("home/jeenet/" + devname, xfer.on_device)
 mqtt.subscribe("home/jeenet/gateway", xfer.on_gateway)
 
 mqtt.start()
