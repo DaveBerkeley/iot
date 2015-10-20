@@ -32,8 +32,13 @@ class FlashInterface:
     # Individual FLASH command handlers (radio->host)
 
     def cmd_info(self, info, data):
-        blocks, size = struct.unpack("<HH", data)
-        info["flash"] = { "cmd" : "info", "blocks" : blocks, "size" : size }
+        blocks, size, packet_size = struct.unpack("<HHH", data)
+        info["flash"] = { 
+            "cmd" : "info", 
+            "blocks" : blocks, 
+            "size" : size,
+            "packet" : packet_size,
+        }
         return info
 
     def cmd_crc(self, info, data):
