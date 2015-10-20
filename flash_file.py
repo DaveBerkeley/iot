@@ -31,14 +31,13 @@ class Xfer:
         self.device = device
         self.start_addr = addr
         self.data = data
-        self.avail = None
+        self.avail = 0
         self.size = None
         self.packet_size = None
         self.retry_time = 60 # s
         self.blocks = []
         self.progress = 0, 0
         self.set_state(self.INFO)
-
 
     class Block:
         SENDING, CHECKING = "SENDING", "CHECKING"
@@ -50,7 +49,9 @@ class Xfer:
             self.sent = 0
             self.crc = None
             self.state = self.SENDING
-            self.state = self.CHECKING
+            # TODO : set to checking if file has been partially sent
+            #self.state = self.CHECKING
+            # TODO : Better still, write a smart binary CRC search
 
         def __repr__(self):
             return "Block(%d,%d,%s,%s)" % (
@@ -58,15 +59,27 @@ class Xfer:
                     self.state,
                     "%04X" % self.crc)
 
+    def tx(self, fn, force=False):
+        if not force:
+            if self.avail <= 1:
+                return
+        try:
+            fn()
+        except httplib.HTTPException:
+            print "HTTP Error"
+        self.avail -= 1
+
     def set_state(self, state):
         print "set_state", state
         if state == self.INFO:
             self.count = 0
             for i in range(8):
-                try:
+                def fn():
                     self.device.flash_info_req()
-                except httplib.HTTPException:
-                    break
+                self.tx(fn, force=True)
+                def fn():
+                    self.device.flash_fast_poll(0)
+                self.tx(fn, force=True)
 
         elif state == self.WRITE:
             self.init_write()
@@ -87,25 +100,31 @@ class Xfer:
 
     def poll(self):
         print "tick", "%d/%d" % self.progress
-        #if len(self.blocks) < 8:
-        #    print self.blocks
         if self.state == self.DEAD:
+            def fn():
+                self.device.flash_fast_poll(0)
+            self.tx(fn, force=True)
             raise Dead()
         elif self.state == self.INFO:
             self.count += 1
             if self.count >= 10:
-                try:
+                def fn():
                     self.device.flash_info_req()
-                except httplib.HTTPException:
-                    print "HTTP Error"
+                self.tx(fn)
                 self.count = 0
         elif self.state == self.WRITE:
-            if self.avail > 3:
-                self.write(self.avail - 1)
+            self.write(self.avail)
 
             if len(self.blocks) == 0:
                 print "Sent all Blocks"
                 self.set_state(self.DEAD)
+
+    def block_done(self, block):
+        idx = self.find_block_idx(block)
+        a, b = self.progress
+        self.progress = a + 1, b
+        del self.blocks[idx]
+        print "Completed", block
 
     # Message response handlers
 
@@ -131,11 +150,7 @@ class Xfer:
             print "Bad-CRC %04X" % crc, block
             block.state = self.Block.SENDING
         else:
-            idx = self.find_block_idx(block)
-            a, b = self.progress
-            self.progress = a + 1, b
-            del self.blocks[idx]
-            print "Block Complete", block
+            self.block_done(block)
 
     def cmd_written(self, info):
         print "cmd_written", info
@@ -144,17 +159,18 @@ class Xfer:
         if not block:
             print "Unknown block", addr
             return
-        self.crc_req(block)
+        if block.crc == info.get("crc", -1):
+            self.block_done(block)
+        else:
+            block.sent = 0
 
     def crc_req(self, block):
-        try:
-            print "crc_req", block
+        def fn():
             self.device.flash_crc_req(block.addr, block.size)
             block.state = self.Block.CHECKING
             block.sent = time.time()
-        except httplib.HTTPException:
-            print "HTTP Error"
-        self.avail -= 1
+
+        self.tx(fn)
 
     #
 
@@ -174,13 +190,12 @@ class Xfer:
     def send(self, block):
         print "send", block, self.avail
         # do write
-        try:
+        def fn():
             self.device.flash_write(block.addr, block.data, True)            
             block.sent = time.time()
             block.state = self.Block.SENDING
-        except httplib.HTTPException:
-            print "HTTP Error"
-        self.avail -= 1
+
+        self.tx(fn)
 
     def write(self, avail):
         #print "write"
@@ -189,18 +204,13 @@ class Xfer:
         for block in self.blocks:
             if block.state == self.Block.CHECKING:
                 if (block.sent + self.retry_time) < now:
-                    #print "Timeout Checking", block
-                    #block.sent = time.time()
-                    #block.state = self.Block.SENDING
-                    if avail:
-                        self.crc_req(block)
-                        avail -= 1
+                    self.crc_req(block)
                 continue
 
             if block.state == self.Block.SENDING:
                 if (block.sent + self.retry_time) > now:
                     continue
-            blocks.append((block.sent, block))
+                blocks.append((block.sent, block))
         blocks.sort() # in time order
 
         if avail > 0:
@@ -211,10 +221,6 @@ class Xfer:
         print "on_avail", avail, size
         self.avail = avail
         self.size = size
-
-        #if self.state == self.WRITE:
-        #    if avail > 5:
-        #        self.write(avail-3)
 
     # MQTT handlers monitoring gateway and device data :
 
@@ -261,7 +267,7 @@ if len(sys.argv) > 1:
     f = open(name)
     data = f.read()
 
-xfer = Xfer(device, 100 * 1024L, data)
+xfer = Xfer(device, 80 * 1024L, data)
 
 mqtt = broker.Broker("uif", server="mosquitto")
 mqtt.subscribe("home/jeenet/relaydev_7", xfer.on_device)
