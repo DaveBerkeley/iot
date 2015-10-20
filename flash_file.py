@@ -50,6 +50,7 @@ class Xfer:
             self.sent = 0
             self.crc = None
             self.state = self.SENDING
+            self.state = self.CHECKING
 
         def __repr__(self):
             return "Block(%d,%d,%s,%s)" % (
@@ -96,12 +97,12 @@ class Xfer:
                 try:
                     self.device.flash_info_req()
                 except httplib.HTTPException:
-                    pass
+                    print "HTTP Error"
                 self.count = 0
         elif self.state == self.WRITE:
-            #if self.avail > 3:
-            #    self.write(self.avail - 1)
-            
+            if self.avail > 3:
+                self.write(self.avail - 1)
+
             if len(self.blocks) == 0:
                 print "Sent all Blocks"
                 self.set_state(self.DEAD)
@@ -134,7 +135,7 @@ class Xfer:
             a, b = self.progress
             self.progress = a + 1, b
             del self.blocks[idx]
-            print "written", block
+            print "Block Complete", block
 
     def cmd_written(self, info):
         print "cmd_written", info
@@ -143,12 +144,17 @@ class Xfer:
         if not block:
             print "Unknown block", addr
             return
+        self.crc_req(block)
+
+    def crc_req(self, block):
         try:
+            print "crc_req", block
             self.device.flash_crc_req(block.addr, block.size)
             block.state = self.Block.CHECKING
             block.sent = time.time()
         except httplib.HTTPException:
-            pass
+            print "HTTP Error"
+        self.avail -= 1
 
     #
 
@@ -173,7 +179,7 @@ class Xfer:
             block.sent = time.time()
             block.state = self.Block.SENDING
         except httplib.HTTPException:
-            pass
+            print "HTTP Error"
         self.avail -= 1
 
     def write(self, avail):
@@ -182,9 +188,14 @@ class Xfer:
         now = time.time()
         for block in self.blocks:
             if block.state == self.Block.CHECKING:
-                if (block.sent + self.retry_time) > now:
-                    print "Timeout Checking", block
-                    block.state = self.Block.SENDING
+                if (block.sent + self.retry_time) < now:
+                    #print "Timeout Checking", block
+                    #block.sent = time.time()
+                    #block.state = self.Block.SENDING
+                    if avail:
+                        self.crc_req(block)
+                        avail -= 1
+                continue
 
             if block.state == self.Block.SENDING:
                 if (block.sent + self.retry_time) > now:
@@ -192,17 +203,18 @@ class Xfer:
             blocks.append((block.sent, block))
         blocks.sort() # in time order
 
-        for _, block in blocks[:avail]:
-            self.send(block)
+        if avail > 0:
+            for _, block in blocks[:avail]:
+                self.send(block)
 
     def on_avail(self, avail, size):
         print "on_avail", avail, size
         self.avail = avail
         self.size = size
 
-        if self.state == self.WRITE:
-            if avail > 5:
-                self.write(avail-3)
+        #if self.state == self.WRITE:
+        #    if avail > 5:
+        #        self.write(avail-3)
 
     # MQTT handlers monitoring gateway and device data :
 
