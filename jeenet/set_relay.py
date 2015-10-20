@@ -4,7 +4,7 @@ import sys
 
 import jsonrpclib
 
-from broker.core import DeviceProxy
+from system.core import DeviceProxy
 
 #
 #

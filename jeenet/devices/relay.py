@@ -47,8 +47,13 @@ class FlashInterface:
         return info
 
     def cmd_written(self, info, data):
-        addr, size = struct.unpack("<LH", data)
-        info["flash"] = { "cmd" : "written", "addr" : addr, "size" : size }
+        addr, size, crc = struct.unpack("<LHH", data)
+        info["flash"] = { 
+            "cmd" : "written", 
+            "addr" : addr, 
+            "size" : size,
+            "crc" : crc,
+        }
         return info
 
     def cmd_read(self, info, data):
@@ -116,12 +121,12 @@ class FlashInterface:
         self.flash_cmd(FLASH_REBOOT, "flash_reboot", [])
 
     def flash_write(self, addr, data, as64=False):
+        if (as64):
+            data = base64.b64decode(data)
         fields = [ 
             (self.flash_flag, "<L", addr), 
             (self.flash_flag, "<H", len(data)),
         ]
-        if (as64):
-            data = base64.b64decode(data)
         self.flash_cmd(FLASH_WRITE, "flash_write", fields, data)
 
     def flash_read_req(self, addr, bytes):
