@@ -37,18 +37,18 @@ class FlashInterface:
         return info
 
     def cmd_crc(self, info, data):
-        addr, size, crc = struct.unpack("<HHH", data)
+        addr, size, crc = struct.unpack("<LHH", data)
         info["flash"] = { "cmd" : "crc", "addr" : addr, "size" : size, "crc" : crc }
         return info
 
     def cmd_written(self, info, data):
-        addr, size = struct.unpack("<HH", data)
+        addr, size = struct.unpack("<LH", data)
         info["flash"] = { "cmd" : "written", "addr" : addr, "size" : size }
         return info
 
     def cmd_read(self, info, data):
         # TODO : fix variable length fields
-        addr, size = struct.unpack("<HH", data)
+        addr, size = struct.unpack("<LH", data)
         info["flash"] = { "cmd" : "read", "addr" : addr, "size" : size }
         return info
 
@@ -102,7 +102,7 @@ class FlashInterface:
 
     def flash_crc_req(self, addr, size):
         fields = [ 
-            (self.flash_flag, "<H", addr), 
+            (self.flash_flag, "<L", addr), 
             (self.flash_flag, "<H", size), 
         ]
         self.flash_cmd(FLASH_CRC_REQ, "flash_crc_req", fields)
@@ -112,7 +112,7 @@ class FlashInterface:
 
     def flash_write(self, addr, data, as64=False):
         fields = [ 
-            (self.flash_flag, "<H", addr), 
+            (self.flash_flag, "<L", addr), 
             (self.flash_flag, "<H", len(data)),
         ]
         if (as64):
@@ -121,7 +121,7 @@ class FlashInterface:
 
     def flash_read_req(self, addr, bytes):
         fields = [ 
-            (self.flash_flag, "<H", addr), 
+            (self.flash_flag, "<L", addr), 
             (self.flash_flag, "<H", bytes),
         ]
         self.flash_cmd(FLASH_READ_REQ, "flash_read_req", fields)
