@@ -274,6 +274,7 @@ p.add_option("-d", "--dev", dest="dev")
 p.add_option("-a", "--addr", dest="addr", type="int")
 p.add_option("-v", "--verbose", dest="verbose", action="store_true")
 p.add_option("-f", "--file", dest="file")
+p.add_option("-r", "--reset", dest="reset", action="store_true")
 
 opts, args = p.parse_args()
 print opts, args
@@ -285,15 +286,21 @@ addr = opts.addr
 verbose = opts.verbose
 name = opts.file
 
-assert name, "must specify file"
 assert devname, "must specify device name"
-assert not addr is None, "must specify address"
 
 server = jsonrpclib.Server('http://%s:8888' % jsonserver)
 device = DeviceProxy(server, devname)
 
+if opts.reset:
+    print "Resetting", devname
+    device.flash_reboot()
+    sys.exit(0)
+
 f = open(name)
 data = f.read()
+
+assert name, "must specify file"
+assert not addr is None, "must specify address"
 
 xfer = Xfer(device, addr, data, verbose=verbose)
 
