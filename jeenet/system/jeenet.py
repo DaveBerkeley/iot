@@ -6,6 +6,7 @@ from threading import Event, Lock
 
 from core import Reader, Device, log, Message
 import bencode
+from bencode import SyntaxError
 
 # see https://github.com/pyserial/pyserial/issues/17
 # Bug in Ubuntu kernel Oct-2015
@@ -124,7 +125,7 @@ class JeeNet(Reader):
     def get(self):
         try:
             node, raw = self.parser.get()
-        except Exception, ex:
+        except (SyntaxError, Exception), ex:
             log(str(ex), "get")
             self.s = None
             raise

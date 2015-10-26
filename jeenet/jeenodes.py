@@ -12,6 +12,7 @@ from system.jeenet import JeeNodeDev, JeeNet, Gateway, message_info, Monitor
 from system.jsonrpc import JsonRpcServer
 from system.iot import IoT
 from system.mqttrpc import MqttRpc
+from system.mqtt import Mqtt
 
 from devices.pir import PirSensor
 from devices.triac import Triac
@@ -29,6 +30,7 @@ p.add_option("-d", "--device", dest="device", default=arduino)
 p.add_option("-v", "--verbose", dest="verbose", action="store_true")
 p.add_option("-i", "--iot", dest="iot", action="store_true")
 p.add_option("-m", "--mqtt", dest="mqtt")
+p.add_option("-b", "--broker", dest="broker")
 opts, args = p.parse_args()
 print opts, args
 
@@ -67,7 +69,7 @@ class UnknownHandler:
         self.monitor = monitor
 
     def add_device(self, node, data, info):
-        print info
+        log("add_device", info)
         dev = info.get("device")
         if not dev in known_devices:
             return False
@@ -149,6 +151,13 @@ jeenet.reset()
 if opts.mqtt:
     rpc = MqttRpc(opts.mqtt, "rpc/jeenet")
     runners.append(rpc)
+
+# MQTT output
+
+if opts.broker:
+    mqtt = Mqtt(opts.broker, broker)
+    on_new_device(mqtt.on_new_device)
+    runners.append(mqtt)
 
 # start the threads
 threads = run_threads(runners)

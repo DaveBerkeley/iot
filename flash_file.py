@@ -242,8 +242,9 @@ class Xfer:
         if not flash:
             return
         # TODO : something is mangling the JSON data
-        flash = flash.replace("'", '"')
-        flash = json.loads(flash)
+        #print "XXX", flash
+        #flash = flash.replace("'", '"')
+        #flash = json.loads(flash)
 
         name = "cmd_" + flash.get("cmd")
         if not hasattr(self, name):
@@ -258,7 +259,12 @@ class Xfer:
         packets = data.get("packets")
         if not packets:
             return
-        if not ((packets[0] == "(") and (packets[-1] == ")")):
+        if type(packets) == type([]):
+            avail, size = packets
+            self.on_avail(avail, size)
+            return
+            
+        if (packets[0] == "(") and (packets[-1] != ")"):
             return
         packets = packets[1:-1]
         avail, size = [ int(x) for x in packets.replace(" ", "").split(",") ]
