@@ -254,11 +254,10 @@ class JeeNodeDev(Device):
 #
 #   Gateway
 
-class Gateway(JeeNodeDev,FlashInterface):
+class Gateway(JeeNodeDev):
 
     def __init__(self, *args, **kwargs):
         JeeNodeDev.__init__(self, *args, **kwargs)
-        FlashInterface.__init__(self, *args, **kwargs)
 
     def to_info(self, data):
         fields = [ 
