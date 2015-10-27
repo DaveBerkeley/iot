@@ -7,6 +7,7 @@ from threading import Event, Lock
 from core import Reader, Device, log, Message
 import bencode
 from bencode import SyntaxError
+from flash import FlashInterface
 
 # see https://github.com/pyserial/pyserial/issues/17
 # Bug in Ubuntu kernel Oct-2015
@@ -253,10 +254,11 @@ class JeeNodeDev(Device):
 #
 #   Gateway
 
-class Gateway(JeeNodeDev):
+class Gateway(JeeNodeDev,FlashInterface):
 
     def __init__(self, *args, **kwargs):
         JeeNodeDev.__init__(self, *args, **kwargs)
+        FlashInterface.__init__(self, *args, **kwargs)
 
     def to_info(self, data):
         fields = [ 
