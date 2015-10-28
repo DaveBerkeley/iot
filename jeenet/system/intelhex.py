@@ -72,7 +72,7 @@ def convert(path, ofile, verbose=False):
         elif record_type == 1:
             if verbose:
                 print "EOF"
-            ofile.close()
+            #ofile.close()
         else:
             raise Exception("Unknown record type " + line)
 

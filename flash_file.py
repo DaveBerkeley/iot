@@ -6,6 +6,7 @@ import time
 import base64
 import httplib
 import optparse
+from cStringIO import StringIO
 
 # https://github.com/joshmarshall/jsonrpclib
 import jsonrpclib
@@ -280,6 +281,7 @@ p.add_option("-d", "--dev", dest="dev")
 p.add_option("-a", "--addr", dest="addr", type="int")
 p.add_option("-v", "--verbose", dest="verbose", action="store_true")
 p.add_option("-f", "--file", dest="file")
+p.add_option("-i", "--intelhex", dest="intelhex")
 p.add_option("-r", "--reset", dest="reset", action="store_true")
 
 opts, args = p.parse_args()
@@ -290,7 +292,6 @@ devname = opts.dev
 mqttserver = opts.mqtt
 addr = opts.addr
 verbose = opts.verbose
-name = opts.file
 
 assert devname, "must specify device name"
 
@@ -302,11 +303,19 @@ if opts.reset:
     device.flash_reboot()
     sys.exit(0)
 
-f = open(name)
-data = f.read()
-
-assert name, "must specify file"
 assert not addr is None, "must specify address"
+
+if opts.file:
+    name = opts.file
+    f = open(name)
+    data = f.read()
+elif opts.intelhex:
+    from jeenet.system.intelhex import convert
+    f = StringIO()
+    convert(opts.intelhex, f)
+    data = f.getvalue()
+else:
+    raise Exception("No input file specified")
 
 xfer = Xfer(device, addr, data, verbose=verbose)
 
