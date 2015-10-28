@@ -10,8 +10,8 @@ from core import log
 # Flash Commands
 FLASH_INFO_REQ = 1
 FLASH_INFO = 2
-#FLASH_CLEAR = 3
-#FLASH_CLEARED = 4
+FLASH_RECORD_REQ = 3
+FLASH_RECORD = 4
 FLASH_WRITE = 5
 FLASH_WRITTEN = 6
 FLASH_CRC_REQ = 7
@@ -63,6 +63,18 @@ class FlashInterface:
         info["flash"] = { "cmd" : "read", "addr" : addr, "size" : size }
         return info
 
+    def cmd_record(self, info, data):
+        slot, name, addr, size, crc = struct.unpack("<B8sLHH", data)
+        info["flash"] = { 
+            "cmd"   : "record", 
+            "slot"  : slot,
+            "addr"  : addr, 
+            "size"  : size,
+            "crc"   : crc,
+            "name"  : name,
+        }
+        return info
+
     # high level data extractor.
     # called by JeeNodeDev when cracking message.
     def flash_to_info(self, data):
@@ -81,6 +93,7 @@ class FlashInterface:
             FLASH_CRC       :   self.cmd_crc,
             FLASH_WRITTEN   :   self.cmd_written,
             FLASH_READ      :   self.cmd_read,
+            FLASH_RECORD    :   self.cmd_record,
         }
 
         info = { "mid" : mid }
@@ -144,6 +157,23 @@ class FlashInterface:
         ]
         self.flash_cmd(FLASH_SET_FAST_POLL, "flash_fast_poll", fields)
 
+    def flash_record_req(self, slot):
+        fields = [ 
+            (self.flash_flag, "<B", slot), 
+        ]
+        self.flash_cmd(FLASH_RECORD_REQ, "flash_record_req", fields)
+
+    def flash_record(self, slot, name, addr, size, crc):
+        name = bytes(name)
+        fields = [ 
+            (self.flash_flag, "<B", slot), 
+            (self.flash_flag, "<8s", name), 
+            (self.flash_flag, "<L", addr), 
+            (self.flash_flag, "<H", size), 
+            (self.flash_flag, "<H", crc), 
+        ]
+        self.flash_cmd(FLASH_RECORD, "flash_record", fields)
+
     flash_api = [ 
         "flash_info_req",
         "flash_crc_req",
@@ -151,6 +181,8 @@ class FlashInterface:
         "flash_write",
         "flash_read_req",
         "flash_fast_poll",
+        "flash_record_req",
+        "flash_record",
     ]
 
 #   FIN
