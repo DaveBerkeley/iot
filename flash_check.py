@@ -64,36 +64,48 @@ class Checker:
             print flash
 
 #
+#   Flash Check main function.
+
+def flash_check(devname, jsonserver, mqttserver, slot):
+    server = jsonrpclib.Server('http://%s:8888' % jsonserver)
+
+    dev = DeviceProxy(server, devname)
+
+    checker = Checker(dev, slot)
+
+    mqtt = broker.Broker("flash_check_" + time.ctime(), server=mqttserver)
+    mqtt.subscribe("home/jeenet/" + devname, checker.on_device)
+
+    mqtt.start()
+
+    checker.request()
+
+    while not checker.dead:
+        try:
+            time.sleep(1)
+        except KeyboardInterrupt:
+            break
+
+    mqtt.stop()
+    mqtt.join()
+
+#
 #
 
-p = optparse.OptionParser()
-p.add_option("-j", "--json", dest="json", default="jeenet")
-p.add_option("-m", "--mqtt", dest="mqtt", default="mosquitto")
-p.add_option("-d", "--dev", dest="dev")
-p.add_option("-s", "--slot", dest="slot", type="int", default=0)
+if __name__ == "__main__":
+    p = optparse.OptionParser()
+    p.add_option("-j", "--json", dest="json", default="jeenet")
+    p.add_option("-m", "--mqtt", dest="mqtt", default="mosquitto")
+    p.add_option("-d", "--dev", dest="dev")
+    p.add_option("-s", "--slot", dest="slot", type="int", default=0)
 
-opts, args = p.parse_args()
+    opts, args = p.parse_args()
 
-server = jsonrpclib.Server('http://%s:8888' % opts.json)
+    jsonserver = opts.json
+    mqttserver = opts.mqtt
+    devname = opts.dev
+    slot = opts.slot
 
-dev = DeviceProxy(server, opts.dev)
-
-checker = Checker(dev, opts.slot)
-
-mqtt = broker.Broker("flash_check_" + time.ctime(), server=opts.mqtt)
-mqtt.subscribe("home/jeenet/" + opts.dev, checker.on_device)
-
-mqtt.start()
-
-checker.request()
-
-while not checker.dead:
-    try:
-        time.sleep(1)
-    except KeyboardInterrupt:
-        break
-
-mqtt.stop()
-mqtt.join()
+    flash_check(devname, jsonserver, mqttserver, slot)
 
 # FIN
