@@ -23,8 +23,6 @@ import broker
 class Dead(Exception):
     pass
 
-#raise httplib.HTTPException()
-
 class Xfer:
 
     INFO, DEAD, WRITE = "INFO", "DEAD", "WRITE"
@@ -272,79 +270,97 @@ class Xfer:
         self.on_avail(avail, size)
 
 #
+#   Write a slot description for the file.
+
+def write_slot(device, slot, slotname, addr, data):
+    if slot == 0:
+        name = slotname or "BOOTDATA"
+    else:
+        name = slotname or "FILEDATA"
+    name += "-" * 8
+    name = name[:8]
+    print "Writing", repr(name), "entry in slot", slot
+    c = CRC16()
+    crc = c.calculate(data)
+    device.flash_record(slot, name, addr, len(data), crc)
+
+#
+#   Main send_file function.
+
+def send_file(device, addr, data, devname, mqttserver="mosquitto", slot=None, slotname=None):
+    xfer = Xfer(device, addr, data, verbose=verbose)
+
+    mqtt = broker.Broker("flash_file_" + time.ctime(), server=mqttserver)
+    mqtt.subscribe("home/jeenet/" + devname, xfer.on_device)
+    mqtt.subscribe("home/jeenet/gateway", xfer.on_gateway)
+
+    mqtt.start()
+
+    while True:
+        try:
+            time.sleep(1)
+            xfer.poll()
+        except KeyboardInterrupt:
+            break
+        except Dead:
+            if not slot is None:
+                write_slot(device, slot, slotname, addr, data)
+            break
+
+    mqtt.stop()
+    mqtt.join()
+
+#
 #
 
-p = optparse.OptionParser()
-p.add_option("-j", "--json", dest="json", default="jeenet")
-p.add_option("-m", "--mqtt", dest="mqtt", default="mosquitto")
-p.add_option("-d", "--dev", dest="dev")
-p.add_option("-a", "--addr", dest="addr", type="int")
-p.add_option("-v", "--verbose", dest="verbose", action="store_true")
-p.add_option("-f", "--file", dest="file")
-p.add_option("-i", "--intelhex", dest="intelhex")
-p.add_option("-r", "--reset", dest="reset", action="store_true")
-p.add_option("-b", "--boot", dest="boot", type="int")
+if __name__ == "__main__":
+    p = optparse.OptionParser()
+    p.add_option("-j", "--json", dest="json", default="jeenet")
+    p.add_option("-m", "--mqtt", dest="mqtt", default="mosquitto")
+    p.add_option("-d", "--dev", dest="dev")
+    p.add_option("-a", "--addr", dest="addr", type="int")
+    p.add_option("-v", "--verbose", dest="verbose", action="store_true")
+    p.add_option("-f", "--file", dest="file")
+    p.add_option("-i", "--intelhex", dest="intelhex")
+    p.add_option("-r", "--reset", dest="reset", action="store_true")
+    p.add_option("-s", "--slot", dest="slot", type="int")
+    p.add_option("-n", "--name", dest="name", default="FILEDATA")
 
-opts, args = p.parse_args()
-print opts, args
+    opts, args = p.parse_args()
+    print opts, args
 
-jsonserver = opts.json
-devname = opts.dev
-mqttserver = opts.mqtt
-addr = opts.addr
-verbose = opts.verbose
+    jsonserver = opts.json
+    devname = opts.dev
+    mqttserver = opts.mqtt
+    addr = opts.addr
+    verbose = opts.verbose
+    slot = opts.slot
+    slotname = opts.name
 
-assert devname, "must specify device name"
+    assert devname, "must specify device name"
 
-server = jsonrpclib.Server('http://%s:8888' % jsonserver)
-device = DeviceProxy(server, devname)
+    server = jsonrpclib.Server('http://%s:8888' % jsonserver)
+    device = DeviceProxy(server, devname)
 
-if opts.reset:
-    print "Resetting", devname
-    device.flash_reboot()
-    sys.exit(0)
+    if opts.reset:
+        print "Resetting", devname
+        device.flash_reboot()
+        sys.exit(0)
 
-assert not addr is None, "must specify address"
+    assert not addr is None, "must specify address"
 
-if opts.file:
-    name = opts.file
-    f = open(name)
-    data = f.read()
-elif opts.intelhex:
-    from jeenet.system.intelhex import convert
-    f = StringIO()
-    convert(opts.intelhex, f)
-    data = f.getvalue()
-else:
-    raise Exception("No input file specified")
+    if opts.file:
+        filename = opts.file
+        f = open(filename)
+        data = f.read()
+    elif opts.intelhex:
+        from jeenet.system.intelhex import convert
+        f = StringIO()
+        convert(opts.intelhex, f)
+        data = f.getvalue()
+    else:
+        raise Exception("No input file specified")
 
-xfer = Xfer(device, addr, data, verbose=verbose)
-
-mqtt = broker.Broker("flash_file_" + time.ctime(), server=mqttserver)
-mqtt.subscribe("home/jeenet/" + devname, xfer.on_device)
-mqtt.subscribe("home/jeenet/gateway", xfer.on_gateway)
-
-mqtt.start()
-
-while True:
-    try:
-        time.sleep(1)
-        xfer.poll()
-    except KeyboardInterrupt:
-        break
-    except Dead:
-        if not opts.boot is None:
-            if opts.boot == 0:
-                name = "BOOTDATA"
-            else:
-                name = "FILEDATA"
-            print "Writing", name, "entry in slot", opts.boot
-            c = CRC16()
-            crc = c.calculate(data)
-            device.flash_record(opts.boot, name, addr, len(data), crc)
-        break
-
-mqtt.stop()
-mqtt.join()
+    send_file(device, addr, data, devname, mqttserver, slot=slot, slotname=slotname)
 
 # FIN
