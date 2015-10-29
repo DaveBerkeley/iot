@@ -3,6 +3,7 @@
 import sys
 import json
 import time
+import optparse
 
 import jsonrpclib
 
@@ -23,7 +24,7 @@ class Checker:
         self.dead = False
 
     def request(self):
-        self.dev.flash_record_req(self.slot)
+        self.dev.flash_info_req()
 
     def on_device(self, x):
         data = json.loads(x.payload)
@@ -37,7 +38,7 @@ class Checker:
             addr = flash["addr"]
             size = flash["size"]
             crc = flash["crc"]
-            print "Got Record:", name, "slot", slot
+            print "Got Record:", repr(name), "slot", slot
             print "a=%d s=%d crc=%X" % (addr, size, crc)
             self.crc = crc
             self.addr = addr
@@ -56,23 +57,31 @@ class Checker:
             else:
                 print "CRC Okay"
             self.dead = True
+        elif cmd == "info":
+            print "Flash found", flash["blocks"] * flash["size"], "bytes"
+            self.dev.flash_record_req(self.slot)
+        else:
+            print flash
 
 #
 #
 
-host = "localhost"
-server = jsonrpclib.Server('http://%s:8888' % host)
+p = optparse.OptionParser()
+p.add_option("-j", "--json", dest="json", default="jeenet")
+p.add_option("-m", "--mqtt", dest="mqtt", default="mosquitto")
+p.add_option("-d", "--dev", dest="dev")
+p.add_option("-s", "--slot", dest="slot", type="int", default=0)
 
-dev = DeviceProxy(server, "relaydev_7")
+opts, args = p.parse_args()
 
-slot = 0
-mqttserver = "localhost"
-devname = "relaydev_7"
+server = jsonrpclib.Server('http://%s:8888' % opts.json)
 
-checker = Checker(dev, slot)
+dev = DeviceProxy(server, opts.dev)
 
-mqtt = broker.Broker("flash_check_" + time.ctime(), server=mqttserver)
-mqtt.subscribe("home/jeenet/" + devname, checker.on_device)
+checker = Checker(dev, opts.slot)
+
+mqtt = broker.Broker("flash_check_" + time.ctime(), server=opts.mqtt)
+mqtt.subscribe("home/jeenet/" + opts.dev, checker.on_device)
 
 mqtt.start()
 
