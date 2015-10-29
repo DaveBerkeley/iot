@@ -79,8 +79,12 @@ class Checker:
             return
         cmd = flash.get("cmd")
         if cmd == "info":
-            print "Flash found", flash["blocks"] * flash["size"], "bytes"
-            self.dev.flash_record_req(self.slot)
+            size = flash["blocks"] * flash["size"]
+            print "Flash found", size, "bytes"
+            if size:
+                self.dev.flash_record_req(self.slot)
+            else:
+                self.dead = True
         elif cmd == "record":
             self.on_record(flash)
         elif cmd == "crc":
