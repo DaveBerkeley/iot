@@ -15,10 +15,11 @@ import broker
 
 class Checker:
 
-    def __init__(self, dev, slot, copy):
+    def __init__(self, dev, slot, copy, multiple=False):
         self.dev = dev
         self.slot = slot
         self.copy = copy
+        self.multiple = multiple
         self.crc = None
         self.addr = None
         self.size = None
@@ -41,8 +42,8 @@ class Checker:
         addr = flash["addr"]
         size = flash["size"]
         crc = flash["crc"]
-        print "Got Record:", repr(name), "slot", slot
-        print "a=%d s=%d crc=%X" % (addr, size, crc)
+        print "slot", slot, repr(name), 
+        print "a=%d s=%d crc=%X" % (addr, size, crc),
         self.crc = crc
         self.addr = addr
         self.size = size
@@ -54,15 +55,21 @@ class Checker:
         size = flash["size"]
         crc = flash["crc"]
         if (self.addr != addr) or (self.size != size):
-            print "Wrong record"
+            print "Wrong record",
             print "a=%d s=%d crc=%X" % (addr, size, crc)
         elif crc != self.crc:
-            print "BAD CRC"
+            print "BAD CRC", 
             print "a=%d s=%d crc=%X" % (addr, size, crc)
         else:
-            print "CRC Okay"
+            print "Okay"
             if not self.copy is None:
                 self.copy_record(self.record, self.copy, crc)
+
+        if self.multiple:
+            self.slot += 1
+            if self.slot < 8:
+                self.dev.flash_record_req(self.slot)
+                return
         self.dead = True
 
     def on_device(self, x):
@@ -85,12 +92,12 @@ class Checker:
 #
 #   Flash Check main function.
 
-def flash_check(devname, jsonserver, mqttserver, slot, copy=None):
+def flash_check(devname, jsonserver, mqttserver, slot, copy=None, multiple=None):
     server = jsonrpclib.Server('http://%s:8888' % jsonserver)
 
     dev = DeviceProxy(server, devname)
 
-    checker = Checker(dev, slot, copy)
+    checker = Checker(dev, slot, copy, multiple=multiple)
 
     mqtt = broker.Broker("flash_check_" + time.ctime(), server=mqttserver)
     mqtt.subscribe("home/jeenet/" + devname, checker.on_device)
@@ -118,6 +125,7 @@ if __name__ == "__main__":
     p.add_option("-d", "--dev", dest="dev")
     p.add_option("-s", "--slot", dest="slot", type="int", default=0)
     p.add_option("-c", "--copy", dest="copy", type="int")
+    p.add_option("-M", "--multiple", dest="multiple", action="store_true")
 
     opts, args = p.parse_args()
 
@@ -126,7 +134,8 @@ if __name__ == "__main__":
     devname = opts.dev
     slot = opts.slot
     copy = opts.copy
+    multiple = opts.multiple
 
-    flash_check(devname, jsonserver, mqttserver, slot, copy)
+    flash_check(devname, jsonserver, mqttserver, slot, copy, multiple)
 
 # FIN
