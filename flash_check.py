@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -u
 
 import sys
 import json
@@ -58,8 +58,7 @@ class Checker:
             print "Wrong record",
             print "a=%d s=%d crc=%X" % (addr, size, crc)
         elif crc != self.crc:
-            print "BAD CRC", 
-            print "a=%d s=%d crc=%X" % (addr, size, crc)
+            print "BAD CRC % X" % crc
         else:
             print "Okay"
             if not self.copy is None:

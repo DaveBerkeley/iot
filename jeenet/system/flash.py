@@ -58,9 +58,15 @@ class FlashInterface:
         return info
 
     def cmd_read(self, info, data):
-        # TODO : fix variable length fields
-        addr, size = struct.unpack("<LH", data)
-        info["flash"] = { "cmd" : "read", "addr" : addr, "size" : size }
+        start = struct.calcsize("<LH")
+        addr, size = struct.unpack("<LH", data[:start])
+        # encode data as base64 as JSON won't allow binary.
+        info["flash"] = { 
+            "cmd" : "read", 
+            "addr" : addr, 
+            "size" : size,
+            "data64" : base64.b64encode(data[start:]),
+        }
         return info
 
     def cmd_record(self, info, data):
