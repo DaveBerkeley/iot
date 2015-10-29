@@ -283,6 +283,7 @@ p.add_option("-v", "--verbose", dest="verbose", action="store_true")
 p.add_option("-f", "--file", dest="file")
 p.add_option("-i", "--intelhex", dest="intelhex")
 p.add_option("-r", "--reset", dest="reset", action="store_true")
+p.add_option("-b", "--boot", dest="boot", type="int")
 
 opts, args = p.parse_args()
 print opts, args
@@ -329,7 +330,18 @@ while True:
     try:
         time.sleep(1)
         xfer.poll()
-    except (KeyboardInterrupt, Dead):
+    except KeyboardInterrupt:
+        break
+    except Dead:
+        if not opts.boot is None:
+            if opts.boot == 0:
+                name = "BOOTDATA"
+            else:
+                name = "FILEDATA"
+            print "Writing", name, "entry in slot", opts.boot
+            c = CRC16()
+            crc = c.calculate(data)
+            device.flash_record(opts.boot, name, addr, len(data), crc)
         break
 
 mqtt.stop()
