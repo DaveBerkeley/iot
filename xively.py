@@ -71,18 +71,28 @@ class CosmWriter:
 #
 
 last_send = {}
+to_go = {}
 
 def tx_info(name, info):
+    global to_go
+    n = "xxx"
     now = time.time()
-    last_sent = last_send.get(name)
+    for name, value in info:
+        to_go[name] = value
+    last_sent = last_send.get(n)
     if last_sent != None:
-        if (last_sent + 60) > now:
+        if (last_sent + 30) > now:
             return
 
+    info = []
+    for name, value in to_go.items():
+        info.append((name, value))
+    info.sort()
+    to_go = {}
     log("COSM PUT", name, info)
     try:
         cosm.put(info)
-        last_send[name] = now
+        last_send[n] = now
     except Exception, ex:
         traceback.print_stack(sys.stdout)
         log(str(ex))
