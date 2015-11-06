@@ -90,7 +90,7 @@ def tx_info(name, info):
         to_go[name] = value
     last_sent = last_send
     if last_sent != None:
-        if (last_sent + 30) > now:
+        if (last_sent + 60) > now:
             return
 
     info = []
