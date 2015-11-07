@@ -27,7 +27,11 @@ class Checker:
         self.record = None
 
     def request(self):
+        self.dev.flash_fast_poll(1)
         self.dev.flash_info_req()
+
+    def close(self):
+        self.dev.flash_fast_poll(0)
 
     def copy_record(self, flash, slot, crc):
         print "Copy slot", flash["slot"], "to", slot
@@ -111,6 +115,8 @@ def flash_check(devname, jsonserver, mqttserver, slot, copy=None, multiple=None)
             time.sleep(1)
         except KeyboardInterrupt:
             break
+
+    checker.close()
 
     mqtt.stop()
     mqtt.join()
