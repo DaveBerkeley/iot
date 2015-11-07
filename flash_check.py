@@ -13,6 +13,18 @@ import broker
 #
 #
 
+next_rid = 0
+
+def make_rid():
+    global next_rid
+    next_rid += 1
+    if next_rid == 0:
+        next_rid = 1
+    return next_rid
+
+#
+#
+
 class Checker:
 
     def __init__(self, dev, slot, copy, multiple=False):
@@ -28,7 +40,7 @@ class Checker:
 
     def request(self):
         self.dev.flash_fast_poll(1)
-        self.dev.flash_info_req()
+        self.dev.flash_info_req(make_rid())
 
     def close(self):
         self.dev.flash_fast_poll(0)
@@ -51,7 +63,7 @@ class Checker:
         self.crc = crc
         self.addr = addr
         self.size = size
-        self.dev.flash_crc_req(addr, size)
+        self.dev.flash_crc_req(make_rid(), addr, size)
         self.record = flash
 
     def on_crc(self, flash):
