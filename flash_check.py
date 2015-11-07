@@ -1,4 +1,4 @@
-#!/usr/bin/python -u
+#!/usr/bin/python
 
 import sys
 import json
@@ -9,6 +9,16 @@ import jsonrpclib
 
 from jeenet.system.core import DeviceProxy
 import broker
+
+#
+#
+
+next_rid = 0
+
+def make_rid():
+    global next_rid
+    next_rid += 1
+    return next_rid & 0xFF
 
 #
 #
@@ -27,14 +37,18 @@ class Checker:
         self.record = None
 
     def request(self):
-        self.dev.flash_info_req()
+        self.dev.flash_fast_poll(make_rid(), 1)
+        self.dev.flash_info_req(make_rid())
+
+    def close(self):
+        self.dev.flash_fast_poll(make_rid(), 0)
 
     def copy_record(self, flash, slot, crc):
         print "Copy slot", flash["slot"], "to", slot
         name = flash["name"]
         if slot == 0:
             name = "BOOTDATA"
-        self.dev.flash_record(slot, name, flash["addr"], flash["size"], crc)
+        self.dev.flash_record(make_rid(), slot, name, flash["addr"], flash["size"], crc)
 
     def on_record(self, flash):
         slot = flash["slot"]
@@ -47,7 +61,7 @@ class Checker:
         self.crc = crc
         self.addr = addr
         self.size = size
-        self.dev.flash_crc_req(addr, size)
+        self.dev.flash_crc_req(make_rid(), addr, size)
         self.record = flash
 
     def on_crc(self, flash):
@@ -58,7 +72,8 @@ class Checker:
             print "Wrong record",
             print "a=%d s=%d crc=%X" % (addr, size, crc)
         elif crc != self.crc:
-            print "BAD CRC % X" % crc
+            print "BAD CRC", 
+            print "a=%d s=%d crc=%X" % (addr, size, crc)
         else:
             print "Okay"
             if not self.copy is None:
@@ -67,7 +82,7 @@ class Checker:
         if self.multiple:
             self.slot += 1
             if self.slot < 8:
-                self.dev.flash_record_req(self.slot)
+                self.dev.flash_record_req(make_rid(), self.slot)
                 return
         self.dead = True
 
@@ -82,7 +97,7 @@ class Checker:
             size = flash["blocks"] * flash["size"]
             print "Flash found", size, "bytes"
             if size:
-                self.dev.flash_record_req(self.slot)
+                self.dev.flash_record_req(make_rid(), self.slot)
             else:
                 self.dead = True
         elif cmd == "record":
@@ -114,6 +129,8 @@ def flash_check(devname, jsonserver, mqttserver, slot, copy=None, multiple=None)
             time.sleep(1)
         except KeyboardInterrupt:
             break
+
+    checker.close()
 
     mqtt.stop()
     mqtt.join()

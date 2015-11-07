@@ -33,9 +33,10 @@ class FlashInterface:
     # Individual FLASH command handlers (radio->host)
 
     def cmd_info(self, info, data):
-        blocks, size, packet_size = struct.unpack("<HHH", data)
+        req_id, blocks, size, packet_size = struct.unpack("<BHHH", data)
         info["flash"] = { 
             "cmd" : "info", 
+            "rid" : req_id,
             "blocks" : blocks, 
             "size" : size,
             "packet" : packet_size,
@@ -43,14 +44,21 @@ class FlashInterface:
         return info
 
     def cmd_crc(self, info, data):
-        addr, size, crc = struct.unpack("<LHH", data)
-        info["flash"] = { "cmd" : "crc", "addr" : addr, "size" : size, "crc" : crc }
+        req_id, addr, size, crc = struct.unpack("<BLHH", data)
+        info["flash"] = { 
+            "cmd" : "crc", 
+            "rid" : req_id,
+            "addr" : addr, 
+            "size" : size, 
+            "crc" : crc 
+        }
         return info
 
     def cmd_written(self, info, data):
-        addr, size, crc = struct.unpack("<LHH", data)
+        req_id, addr, size, crc = struct.unpack("<BLHH", data)
         info["flash"] = { 
             "cmd" : "written", 
+            "rid" : req_id,
             "addr" : addr, 
             "size" : size,
             "crc" : crc,
@@ -58,11 +66,12 @@ class FlashInterface:
         return info
 
     def cmd_read(self, info, data):
-        start = struct.calcsize("<LH")
-        addr, size = struct.unpack("<LH", data[:start])
+        start = struct.calcsize("<BLH")
+        req_id, addr, size = struct.unpack("<BLH", data[:size])
         # encode data as base64 as JSON won't allow binary.
         info["flash"] = { 
             "cmd" : "read", 
+            "rid" : req_id,
             "addr" : addr, 
             "size" : size,
             "data64" : base64.b64encode(data[start:]),
@@ -70,9 +79,10 @@ class FlashInterface:
         return info
 
     def cmd_record(self, info, data):
-        slot, name, addr, size, crc = struct.unpack("<B8sLHH", data)
+        req_id, slot, name, addr, size, crc = struct.unpack("<BB8sLHH", data)
         info["flash"] = { 
             "cmd"   : "record", 
+            "rid"   : req_id,
             "slot"  : slot,
             "addr"  : addr, 
             "size"  : size,
@@ -127,51 +137,63 @@ class FlashInterface:
 
     #   FLASH commands (host->radio)
 
-    def flash_info_req(self):
-        log("flash_info_req", "xxxx")
-        self.flash_cmd(FLASH_INFO_REQ, "flash_info_req", [])
-
-    def flash_crc_req(self, addr, size):
+    def flash_info_req(self, req_id):
+        log("flash_info_req", req_id)
         fields = [ 
+            (self.flash_flag, "<B", req_id), 
+        ]
+        self.flash_cmd(FLASH_INFO_REQ, "flash_info_req", fields)
+
+    def flash_crc_req(self, req_id, addr, size):
+        fields = [ 
+            (self.flash_flag, "<B", req_id), 
             (self.flash_flag, "<L", addr), 
             (self.flash_flag, "<H", size), 
         ]
         self.flash_cmd(FLASH_CRC_REQ, "flash_crc_req", fields)
 
-    def flash_reboot(self):
-        self.flash_cmd(FLASH_REBOOT, "flash_reboot", [])
+    def flash_reboot(self, req_id):
+        fields = [ 
+            (self.flash_flag, "<B", req_id), 
+        ]
+        self.flash_cmd(FLASH_REBOOT, "flash_reboot", fields)
 
-    def flash_write(self, addr, data, as64=False):
+    def flash_write(self, req_id, addr, data, as64=False):
         if (as64):
             data = base64.b64decode(data)
         fields = [ 
+            (self.flash_flag, "<B", req_id), 
             (self.flash_flag, "<L", addr), 
             (self.flash_flag, "<H", len(data)),
         ]
         self.flash_cmd(FLASH_WRITE, "flash_write", fields, data)
 
-    def flash_read_req(self, addr, bytes):
+    def flash_read_req(self, req_id, addr, bytes):
         fields = [ 
+            (self.flash_flag, "<B", req_id), 
             (self.flash_flag, "<L", addr), 
             (self.flash_flag, "<H", bytes),
         ]
         self.flash_cmd(FLASH_READ_REQ, "flash_read_req", fields)
 
-    def flash_fast_poll(self, state):
+    def flash_fast_poll(self, req_id, state):
         fields = [ 
+            (self.flash_flag, "<B", req_id), 
             (self.flash_flag, "<B", state), 
         ]
         self.flash_cmd(FLASH_SET_FAST_POLL, "flash_fast_poll", fields)
 
-    def flash_record_req(self, slot):
+    def flash_record_req(self, req_id, slot):
         fields = [ 
+            (self.flash_flag, "<B", req_id), 
             (self.flash_flag, "<B", slot), 
         ]
         self.flash_cmd(FLASH_RECORD_REQ, "flash_record_req", fields)
 
-    def flash_record(self, slot, name, addr, size, crc):
+    def flash_record(self, req_id, slot, name, addr, size, crc):
         name = bytes(name)
         fields = [ 
+            (self.flash_flag, "<B", req_id), 
             (self.flash_flag, "<B", slot), 
             (self.flash_flag, "<8s", name), 
             (self.flash_flag, "<L", addr), 
