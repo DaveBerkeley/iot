@@ -18,9 +18,7 @@ next_rid = 0
 def make_rid():
     global next_rid
     next_rid += 1
-    if next_rid == 0:
-        next_rid = 1
-    return next_rid
+    return next_rid & 0xFF
 
 #
 #
@@ -39,18 +37,18 @@ class Checker:
         self.record = None
 
     def request(self):
-        self.dev.flash_fast_poll(1)
+        self.dev.flash_fast_poll(make_rid(), 1)
         self.dev.flash_info_req(make_rid())
 
     def close(self):
-        self.dev.flash_fast_poll(0)
+        self.dev.flash_fast_poll(make_rid(), 0)
 
     def copy_record(self, flash, slot, crc):
         print "Copy slot", flash["slot"], "to", slot
         name = flash["name"]
         if slot == 0:
             name = "BOOTDATA"
-        self.dev.flash_record(slot, name, flash["addr"], flash["size"], crc)
+        self.dev.flash_record(make_rid(), slot, name, flash["addr"], flash["size"], crc)
 
     def on_record(self, flash):
         slot = flash["slot"]
@@ -84,7 +82,7 @@ class Checker:
         if self.multiple:
             self.slot += 1
             if self.slot < 8:
-                self.dev.flash_record_req(self.slot)
+                self.dev.flash_record_req(make_rid(), self.slot)
                 return
         self.dead = True
 
@@ -99,7 +97,7 @@ class Checker:
             size = flash["blocks"] * flash["size"]
             print "Flash found", size, "bytes"
             if size:
-                self.dev.flash_record_req(self.slot)
+                self.dev.flash_record_req(make_rid(), self.slot)
             else:
                 self.dead = True
         elif cmd == "record":

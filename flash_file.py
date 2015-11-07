@@ -20,6 +20,16 @@ import broker
 #
 #
 
+last_rid = 0
+
+def make_rid():
+    global last_rid
+    last_rid += 1
+    return last_rid & 0xFF
+
+#
+#
+
 class Dead(Exception):
     pass
 
@@ -75,8 +85,8 @@ class Xfer:
         if state == self.INFO:
             self.count = 0
             def fn():
-                self.device.flash_info_req()
-                self.device.flash_fast_poll(1)
+                self.device.flash_info_req(make_rid())
+                self.device.flash_fast_poll(make_rid(), 1)
             for i in range(4):
                 self.tx(fn, force=True)
 
@@ -103,14 +113,14 @@ class Xfer:
             def fn():
                 if self.verbose:
                     print "flash_fast_poll(0)"
-                self.device.flash_fast_poll(0)
+                self.device.flash_fast_poll(make_rid(), 0)
             self.tx(fn, force=True)
             raise Dead()
         elif self.state == self.INFO:
             self.count += 1
             if self.count >= 10:
                 def fn():
-                    self.device.flash_info_req()
+                    self.device.flash_info_req(make_rid())
                 self.tx(fn)
                 self.count = 0
         elif self.state == self.WRITE:
@@ -171,7 +181,7 @@ class Xfer:
 
     def crc_req(self, block):
         def fn():
-            self.device.flash_crc_req(block.addr, block.size)
+            self.device.flash_crc_req(make_rid(), block.addr, block.size)
             block.state = self.Block.CHECKING
             block.sent = time.time()
 
@@ -198,7 +208,7 @@ class Xfer:
             print "send", block, self.avail
         # do write
         def fn():
-            self.device.flash_write(block.addr, block.data, True)            
+            self.device.flash_write(make_rid(), block.addr, block.data, True)            
             block.sent = time.time()
             block.state = self.Block.SENDING
 
@@ -282,7 +292,7 @@ def write_slot(device, slot, slotname, addr, data):
     print "Writing", repr(name), "entry in slot", slot
     c = CRC16()
     crc = c.calculate(data)
-    device.flash_record(slot, name, addr, len(data), crc)
+    device.flash_record(make_rid(), slot, name, addr, len(data), crc)
 
 #
 #   Main send_file function.
@@ -344,7 +354,7 @@ if __name__ == "__main__":
 
     if opts.reset:
         print "Resetting", devname
-        device.flash_reboot()
+        device.flash_reboot(make_rid())
         sys.exit(0)
 
     assert not addr is None, "must specify address"
