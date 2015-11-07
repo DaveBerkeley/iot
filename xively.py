@@ -7,7 +7,7 @@ import httplib
 import socket
 import traceback
 import sys
-from threading import Lock
+from threading import Lock, Thread
 
 import broker
 
@@ -68,23 +68,42 @@ class CosmWriter:
         return response.status, response.reason
 
 #
+#   Run the xively send in a thread.
+#   This avoids hanging the main process on error.
+
+def execute(fn, info):
+    def run():
+        fn(info)
+    thread = Thread(target=run)
+    thread.start()
+
+#
 #
 
-last_send = {}
+last_send = 0
+to_go = {}
 
 def tx_info(name, info):
+    global to_go, last_send
     now = time.time()
-    last_sent = last_send.get(name)
+    for name, value in info:
+        to_go[name] = value
+    last_sent = last_send
     if last_sent != None:
-        if (last_sent + 60) > now:
+        if (last_sent + 30) > now:
             return
 
+    info = []
+    for name, value in to_go.items():
+        info.append((name, value))
+    info.sort()
+    to_go = {}
     log("COSM PUT", name, info)
     try:
-        cosm.put(info)
-        last_send[name] = now
+        execute(cosm.put, info)
+        last_send = now
     except Exception, ex:
-        traceback.print_stack(sys.stdout)
+        #traceback.print_stack(sys.stdout)
         log(str(ex))
 
 #
