@@ -33,9 +33,10 @@ class FlashInterface:
     # Individual FLASH command handlers (radio->host)
 
     def cmd_info(self, info, data):
-        blocks, size, packet_size = struct.unpack("<HHH", data)
+        req_id, blocks, size, packet_size = struct.unpack("<BHHH", data)
         info["flash"] = { 
             "cmd" : "info", 
+            "rid" : req_id,
             "blocks" : blocks, 
             "size" : size,
             "packet" : packet_size,
@@ -43,8 +44,14 @@ class FlashInterface:
         return info
 
     def cmd_crc(self, info, data):
-        addr, size, crc = struct.unpack("<LHH", data)
-        info["flash"] = { "cmd" : "crc", "addr" : addr, "size" : size, "crc" : crc }
+        rid, addr, size, crc = struct.unpack("<BLHH", data)
+        info["flash"] = { 
+            "cmd" : "crc", 
+            "rid" : rid,
+            "addr" : addr, 
+            "size" : size, 
+            "crc" : crc 
+        }
         return info
 
     def cmd_written(self, info, data):
@@ -121,12 +128,16 @@ class FlashInterface:
 
     #   FLASH commands (host->radio)
 
-    def flash_info_req(self):
-        log("flash_info_req", "xxxx")
-        self.flash_cmd(FLASH_INFO_REQ, "flash_info_req", [])
-
-    def flash_crc_req(self, addr, size):
+    def flash_info_req(self, req_id):
+        log("flash_info_req", req_id)
         fields = [ 
+            (self.flash_flag, "<B", req_id), 
+        ]
+        self.flash_cmd(FLASH_INFO_REQ, "flash_info_req", fields)
+
+    def flash_crc_req(self, req_id, addr, size):
+        fields = [ 
+            (self.flash_flag, "<B", req_id), 
             (self.flash_flag, "<L", addr), 
             (self.flash_flag, "<H", size), 
         ]
