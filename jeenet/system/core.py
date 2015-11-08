@@ -185,7 +185,8 @@ class Device:
 
     def add_message(self, msg):
         # TODO : add lock
-        self.messages.append(msg)
+        #self.messages.append(msg)
+        pass # TODO : revisit the whole polling scheme
 
     def clear_messages(self, *args, **kwargs):
         # TODO : add lock

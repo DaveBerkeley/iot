@@ -12,7 +12,7 @@ class RelayDev(JeeNodeDev,FlashInterface):
     def __init__(self, *args, **kwargs):
         JeeNodeDev.__init__(self, *args, **kwargs)
         FlashInterface.__init__(self, *args, **kwargs)
-        self.is_sleepy = True # not really
+        #self.is_sleepy = True # not really
 
     def to_info(self, data):
         rx_fields = [ 
