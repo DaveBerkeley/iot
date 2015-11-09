@@ -222,7 +222,7 @@ class Checker:
         self.info_req()
 
     def fail(self, info):
-        print "info fail", info
+        print "fail", info
         self.dead = True
 
     def info_good(self, info):
@@ -231,8 +231,6 @@ class Checker:
         print "found flash size", size, "buffsize", buff
         # start requesting the slots
         self.recs = {}
-        self.render = []
-        self.to_see = 0
         for i in range(8):
             self.rec_req(i)
             self.recs[i] = True
@@ -241,19 +239,14 @@ class Checker:
 
         slot = info["slot"]
 
-        txt = "%d %s" % (slot, info["name"])
+        fmt = "%02d"
+        txt = fmt % slot
+        txt += " %s" % info["name"]
         txt += " %8d" % info["addr"]
         txt += " %6d" % info["size"]
         txt += " %04X" % info["crc"]
-        self.render.append(txt)
-        self.render.sort()
 
-        while self.render:
-            if not self.render[0].startswith(str(self.to_see)):
-                break
-            print self.render[0]
-            self.render = self.render[1:]
-            self.to_see += 1
+        print txt
 
         if self.recs.get(slot):
             del self.recs[slot]
@@ -267,8 +260,18 @@ class Checker:
 
 class MqttReader:
 
-    def __init__(self):
+    def __init__(self, devname, server):
         self.q = Queue.Queue()
+        self.mqtt = broker.Broker("flash_io_" + time.ctime(), server=server)
+        self.mqtt.subscribe("home/jeenet/" + devname, self.on_device)
+        self.mqtt.subscribe("home/jeenet/gateway", self.on_gateway)
+
+    def start(self):
+        self.mqtt.start()
+
+    def stop(self):
+        self.mqtt.stop()
+        self.mqtt.join()
 
     def add(self, ident, info):
         self.q.put((ident, info))
@@ -330,13 +333,7 @@ def flash_check(devname, jsonserver, mqttserver):
 
     sched = Scheduler()
     checker = Checker(dev, sched)
-    reader = MqttReader()
-
-    mqtt = broker.Broker("flash_io_" + time.ctime(), server=mqttserver)
-    mqtt.subscribe("home/jeenet/" + devname, reader.on_device)
-    mqtt.subscribe("home/jeenet/gateway", reader.on_gateway)
-
-    mqtt.start()
+    reader = MqttReader(devname, mqttserver)
 
     def mqtt_handler(msg):
         ident, info = msg
@@ -350,6 +347,7 @@ def flash_check(devname, jsonserver, mqttserver):
             raise Exception(("Unknown ident", ident, info))
 
     checker.start()
+    reader.start()
 
     while not checker.dead:
         try:
@@ -363,8 +361,7 @@ def flash_check(devname, jsonserver, mqttserver):
 
     #checker.close()
 
-    mqtt.stop()
-    mqtt.join()
+    reader.stop()
 
 #
 #
