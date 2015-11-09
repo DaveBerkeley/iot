@@ -14,7 +14,7 @@ import broker
 #
 #
 
-next_rid = 0
+next_rid = int(time.time())
 
 def make_rid():
     global next_rid
@@ -24,9 +24,78 @@ def make_rid():
 #
 #
 
+class Command:
+
+    lut = {} # {rid : command} map
+
+    def __init__(self, fn, *args, **kwargs):
+        self.fn = fn
+        self.rid = make_rid()
+        self.args = args
+        self.kwargs = kwargs
+        self.lut[self.rid] = self
+
+    def __call__(self):
+        return self.fn(self.rid, *self.args, **self.kwargs)
+
+    def response(self, info):
+        raise Exception("implement in subclass")
+
+    def remove(self):
+        if self.lut.get(self.rid) == self:
+            del self.lut[self.rid]
+
+    @staticmethod
+    def on_response(rid, info):
+        c = Command.lut.get(rid)
+        if c:
+            c.response(info)
+        else:
+            print "command not found", rid, info
+
+#
+#
+
+class InfoReq(Command):
+
+    def __init__(self, dev, sched, ack, nak):
+        Command.__init__(self, dev.flash_info_req)
+        self.ack = ack
+        self.nak = nak
+        self.done = False
+        sched.add(10, self.timeout)
+
+    def __call__(self):
+        try:
+            Command.__call__(self)
+        except Exception, ex:
+            self.done = True
+            self.nak(ex)
+
+    def response(self, info):
+        self.remove()
+        self.done = True
+        # TODO : info may mean nak
+        self.ack(info)
+
+    def timeout(self):
+        if not self.done:
+            self.nak("timeout")
+
+#
+#
+
 class Checker:
-    def __init__(self, x):
-        pass
+    def __init__(self, dev, sched):
+        self.dev = dev
+        self.sched = sched
+    def start(self):
+        c = InfoReq(self.dev, self.sched, self.info_good, self.info_fail)
+        c()
+    def info_fail(self, info):
+        print "info fail", info
+    def info_good(self, info):
+        print "info", info
 
 #
 #   Decouple MQTT messages from the reader thread
@@ -53,6 +122,10 @@ class MqttReader:
             return self.q.get(True, timeout)
         except Queue.Empty:
             return None
+    def poll(self, handler):
+        msg = self.pop()
+        if not msg is None:
+            handler(msg)
 
 #
 #
@@ -73,8 +146,8 @@ class Scheduler:
             t, fn = self.q[0]
             if t > now:
                 break
-            fn()
             self.q.pop(0)
+            fn()
 
 #
 #   Flash Check main function.
@@ -84,15 +157,9 @@ def flash_check(devname, jsonserver, mqttserver):
 
     dev = DeviceProxy(server, devname)
 
-    checker = Checker(dev)
-    reader = MqttReader()
     sched = Scheduler()
-
-    def tick():
-        print "tick"
-        sched.add(10, tick)
-
-    sched.add(10, tick)
+    checker = Checker(dev, sched)
+    reader = MqttReader()
 
     mqtt = broker.Broker("flash_check_" + time.ctime(), server=mqttserver)
     mqtt.subscribe("home/jeenet/" + devname, reader.on_device)
@@ -100,13 +167,19 @@ def flash_check(devname, jsonserver, mqttserver):
 
     mqtt.start()
 
-    #checker.request()
+    def mqtt_handler(msg):
+        print msg
+        ident, info = msg
+        if ident == "D":
+            rid = info.get("rid")
+            if not rid is None:
+                Command.on_response(rid, info)
+
+    checker.start()
 
     while True: # not checker.dead:
         try:
-            msg = reader.pop()
-            if msg:
-                print msg
+            reader.poll(mqtt_handler)
             sched.poll()
         except KeyboardInterrupt:
             break
