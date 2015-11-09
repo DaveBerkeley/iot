@@ -4,7 +4,7 @@ import sys
 import json
 import time
 import optparse
-from Queue import Queue
+import Queue
 
 import jsonrpclib
 
@@ -34,9 +34,9 @@ class Checker:
 class MqttReader:
 
     def __init__(self):
-        self.q = Queue()
+        self.q = Queue.Queue()
     def add(self, ident, info):
-        print ident, info
+        #print ident, info
         self.q.put((ident, info))
     def on_device(self, x):
         data = json.loads(x.payload)
@@ -48,6 +48,33 @@ class MqttReader:
         p = data.get("packets")
         if p:
             self.add("G", p)
+    def pop(self, timeout=0.1):
+        try:
+            return self.q.get(True, timeout)
+        except Queue.Empty:
+            return None
+
+#
+#
+
+class Scheduler:
+
+    def __init__(self):
+        self.q = []
+
+    def add(self, t, fn):
+        t += time.time()
+        self.q.append((t, fn))
+        self.q.sort()
+
+    def poll(self):
+        now = time.time()
+        while len(self.q):
+            t, fn = self.q[0]
+            if t > now:
+                break
+            fn()
+            self.q.pop(0)
 
 #
 #   Flash Check main function.
@@ -59,6 +86,13 @@ def flash_check(devname, jsonserver, mqttserver):
 
     checker = Checker(dev)
     reader = MqttReader()
+    sched = Scheduler()
+
+    def tick():
+        print "tick"
+        sched.add(10, tick)
+
+    sched.add(10, tick)
 
     mqtt = broker.Broker("flash_check_" + time.ctime(), server=mqttserver)
     mqtt.subscribe("home/jeenet/" + devname, reader.on_device)
@@ -70,7 +104,10 @@ def flash_check(devname, jsonserver, mqttserver):
 
     while True: # not checker.dead:
         try:
-            time.sleep(1)
+            msg = reader.pop()
+            if msg:
+                print msg
+            sched.poll()
         except KeyboardInterrupt:
             break
 
