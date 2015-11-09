@@ -261,7 +261,7 @@ class DeviceProxy:
     def __init__(self, server, name):
         self.server = server
         self.name = name
-        log("Device", self.name)
+        #log("Device", self.name)
 
     def __getattr__(self, fn_name):
         def fn(*args, **kwargs):
