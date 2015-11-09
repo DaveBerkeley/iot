@@ -584,10 +584,43 @@ class Checker:
         requests = Chain()
         self.info_req(on_info)
 
+    def verify_file(self, fname, slot):
+        raw = open(fname).read()
+        c = CRC16()
+        crc = c.calculate(raw)
+        size = len(raw)
+        del raw
+
+        print "verify '%s' slot=%d size=%d crc=%04X" % (fname, slot, size, crc)
+
+        def on_slot(info):
+            okay = False
+            if info.get("size") == size:
+                if info.get("crc") == crc:
+                    okay = True
+
+            if okay:
+                print "Validates okay"
+            else:
+                print "Files differ size=%d crc=%04X" % (info.get("size"), info.get("crc")) 
+
+            self.dead = True
+
+        def on_info(info):
+            size, _ = info
+            if not size:
+                print "No Flash Fitted"
+                self.dead = True
+
+            print "Found", size, "flash"
+            self.rec_req(on_slot, slot)
+
+        self.info_req(on_info)
+
 #
 #   Flash IO main function.
 
-def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name):
+def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name, verify):
     server = jsonrpclib.Server('http://%s:8888' % jsonserver)
 
     dev = DeviceProxy(server, devname)
@@ -598,7 +631,9 @@ def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name):
 
     if dir_req:
         checker.slot_request(slot)
-    if addr != None:
+    if verify:
+        checker.verify_file(fname, slot)
+    elif addr != None:
         checker.write_file(addr, fname, slot, name)
 
     reader.start()
@@ -628,6 +663,7 @@ if __name__ == "__main__":
     p.add_option("-s", "--slot", dest="slot", type="int")
     p.add_option("-f", "--fname", dest="fname")
     p.add_option("-n", "--name", dest="name")
+    p.add_option("-V", "--verify", dest="verify", action="store_true")
 
     opts, args = p.parse_args()
 
@@ -635,6 +671,6 @@ if __name__ == "__main__":
     mqttserver = opts.mqtt
     devname = opts.dev
 
-    flash_io(devname, jsonserver, mqttserver, opts.dir, opts.addr, opts.slot, opts.fname, opts.name)
+    flash_io(devname, jsonserver, mqttserver, opts.dir, opts.addr, opts.slot, opts.fname, opts.name, opts.verify)
 
 # FIN
