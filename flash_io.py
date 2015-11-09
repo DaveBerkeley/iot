@@ -324,6 +324,31 @@ class FlashWriteReq(Command, Retry):
             self.nak(info)
 
 #
+#
+
+class FlashSlotWrite(Command, Retry):
+
+    def __init__(self, dev, sched, slot, name, addr, size, crc, ack=None, nak=None):
+        Command.__init__(self, txq, dev.flash_record, slot, name, addr, size, crc)
+        Retry.__init__(self, sched, trys=5, timeout=1)
+        self.set_ack_nak(ack, nak)
+
+    def get_timeout(self):
+        # exponential backoff
+        n = self.timeout
+        self.timeout *= 2
+        return n
+
+    def __call__(self):
+        Retry.__call__(self)
+
+    def response(self, info):
+        if info.get("cmd") == "crc":
+            self.ack(info)
+        else:
+            self.nak(info)
+
+#
 #   Run a set of commands in parallel
 
 class Batch:
@@ -405,6 +430,15 @@ class Checker:
     def write_req(self, ack, addr, b64):
         FlashWriteReq(self.dev, self.sched, addr, b64, ack, self.fail)()
 
+    def write_slot(self, ack, slot, slotname, addr, size, crc):
+        if slot == 0:
+            name = slotname or "BOOTDATA"
+        else:
+            name = slotname or "FILEDATA"
+        name += "-" * 8
+        name = name[:8]
+        FlashSlotWrite(self.dev, self.sched, slot, name, addr, size, crc, ack, self.fail)()
+
     #
 
     def slot_request(self, slot=None):
@@ -456,23 +490,19 @@ class Checker:
         c = CRC16()
         crc = c.calculate(raw)
 
-        # XXXXXXXXXXXXX
-        def write_slot(device, slot, slotname, addr, data):
-            if slot == 0:
-                name = slotname or "BOOTDATA"
-            else:
-                name = slotname or "FILEDATA"
-            name += "-" * 8
-            name = name[:8]
-            device.flash_record(make_rid(), slot, name, addr, len(data), crc)
-
         def write_slot():
             if slot is None:
                 self.dead = True
                 return
 
-            print "Write slot", slot, start_addr, len(raw), name, crc, "TODO"
-            self.dead = True
+            size = len(raw)
+            print "Write slot", slot, start_addr, size, name, crc, "TODO"
+
+            def ack(info):
+                # TODO : check crc
+                self.dead = True
+
+            self.write_slot(ack, slot, name, start_addr, size, crc)
 
         def verify():
             print "Verify ..."
