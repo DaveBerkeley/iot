@@ -354,8 +354,10 @@ class Checker:
 
     #   Flash Commands
 
-    def info_req(self, ack):
-        FlashInfoReq(self.dev, self.sched, ack, self.fail)()
+    def info_req(self, ack, nak=None):
+        if nak is None:
+            nak = self.fail
+        FlashInfoReq(self.dev, self.sched, ack, nak)()
 
     def rec_req(self, ack, rec):
         FlashRecordReq(self.dev, self.sched, rec, ack, self.fail)()
@@ -365,43 +367,44 @@ class Checker:
 
     #
 
-    def dir_request(self):
-        self.info_req(self.info_good)
+    def slot_request(self, slot=None):
 
-    def info_good(self, info):
-        #log("size", info)
-        size, buff = info
-        print "found flash size", size, "buffsize", buff
-        # chain requesting the slots
-        self.recs = Chain()
-        for i in range(8):
-            self.recs.run(self.rec_req, self.rec_good, i)
+        def on_slot(info):
+            # handler for slot response
+            slot = info["slot"]
+            addr = info["addr"]
+            size = info["size"]
+            crc = info["crc"]
 
-    def rec_good(self, info):
-        slot = info["slot"]
-        addr = info["addr"]
-        size = info["size"]
-        crc = info["crc"]
+            txt = "%02d %s %8d %6d %04X" % (slot, info["name"], addr, size, crc)
 
-        fmt = "%02d"
-        txt = fmt % slot
-        txt += " %s" % info["name"]
-        txt += " %8d" % addr
-        txt += " %6d" % size
-        txt += " %04X" % crc
+            def ack(info):
+                # handler for crc response
+                okay = "Error, crc=%04X" % info.get("crc")
+                if info.get("crc") == crc:
+                    if info.get("addr") == addr:
+                        if info.get("size") == size:
+                            okay = "Ok"
+                print txt, okay
+                if self.recs.done():
+                    self.dead = True
 
-        def ack(info):
-            okay = "Error"
-            if info.get("crc") == crc:
-                if info.get("addr") == addr:
-                    if info.get("size") == size:
-                        okay = "Ok"
-            print txt, okay
-            if self.recs.done():
-                self.dead = True
+            # chain the CRC request
+            self.recs.run(self.crc_req, ack, addr, size)
 
-        # chain the CRC request
-        self.recs.run(self.crc_req, ack, addr, size)
+        def on_info(info):
+            # handler for flash info response
+            size, buff = info
+            print "found flash size", size, "buffsize", buff
+            # chain requesting the slots
+            self.recs = Chain()
+            if slot is None:
+                for i in range(8):
+                    self.recs.run(self.rec_req, on_slot, i)
+            else:
+                self.recs.run(self.rec_req, on_slot, slot)
+
+        self.info_req(on_info)
 
 #
 #   Flash Check main function.
@@ -426,7 +429,7 @@ def flash_check(devname, jsonserver, mqttserver):
         else:
             raise Exception(("Unknown ident", ident, info))
 
-    checker.dir_request()
+    checker.slot_request()
     reader.start()
 
     while not checker.dead:
