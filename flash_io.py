@@ -72,10 +72,24 @@ class MqttReader:
         except Queue.Empty:
             return None
 
-    def poll(self, handler):
+    def mqtt_handler(self, msg):
+        ident, info = msg
+        if ident == "D":
+            rid = info.get("rid")
+            if not rid is None:
+                Command.on_response(rid, info)
+        elif ident == "G":
+            txq.on_gateway(info)
+        else:
+            raise Exception(("Unknown ident", ident, info))
+
+    def poll(self, handler=None):
+        if handler is None:
+            handler = self.mqtt_handler
         msg = self.pop()
         if not msg is None:
             handler(msg)
+
 
 #
 #   Not really a scheduler so much as an event generator.
@@ -582,19 +596,8 @@ def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name):
     checker = Checker(dev, sched)
     reader = MqttReader(devname, mqttserver)
 
-    def mqtt_handler(msg):
-        ident, info = msg
-        if ident == "D":
-            rid = info.get("rid")
-            if not rid is None:
-                Command.on_response(rid, info)
-        elif ident == "G":
-            txq.on_gateway(info)
-        else:
-            raise Exception(("Unknown ident", ident, info))
-
     if dir_req:
-        checker.slot_request()
+        checker.slot_request(slot)
     if addr != None:
         checker.write_file(addr, fname, slot, name)
 
@@ -602,7 +605,7 @@ def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name):
 
     while not checker.dead:
         try:
-            reader.poll(mqtt_handler)
+            reader.poll()
             sched.poll()
         except KeyboardInterrupt:
             break
