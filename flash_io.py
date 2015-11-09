@@ -75,8 +75,11 @@ class InfoReq(Command):
     def response(self, info):
         self.remove()
         self.done = True
-        # TODO : info may mean nak
-        self.ack(info)
+        size = info.get("blocks", 0) * info.get("size", 0)
+        if size:
+            self.ack(info)
+        else:
+            self.nak("no flash fitted")
 
     def timeout(self):
         if not self.done:
@@ -104,24 +107,28 @@ class MqttReader:
 
     def __init__(self):
         self.q = Queue.Queue()
+
     def add(self, ident, info):
-        #print ident, info
         self.q.put((ident, info))
+
     def on_device(self, x):
         data = json.loads(x.payload)
         f = data.get("flash")
         if f:
             self.add("D", f)
+
     def on_gateway(self, x):
         data = json.loads(x.payload)
         p = data.get("packets")
         if p:
             self.add("G", p)
+
     def pop(self, timeout=0.1):
         try:
             return self.q.get(True, timeout)
         except Queue.Empty:
             return None
+
     def poll(self, handler):
         msg = self.pop()
         if not msg is None:
@@ -135,8 +142,8 @@ class Scheduler:
     def __init__(self):
         self.q = []
 
-    def add(self, t, fn):
-        t += time.time()
+    def add(self, dt, fn):
+        t = time.time() + dt
         self.q.append((t, fn))
         self.q.sort()
 
@@ -168,14 +175,23 @@ def flash_check(devname, jsonserver, mqttserver):
     mqtt.start()
 
     def mqtt_handler(msg):
-        print msg
         ident, info = msg
         if ident == "D":
             rid = info.get("rid")
             if not rid is None:
                 Command.on_response(rid, info)
+        elif ident == "G":
+            print "TODO", info
+        else:
+            print "Unknown ident", ident, info
 
     checker.start()
+
+    def tick():
+        print "tick"
+        sched.add(10, tick)
+
+    sched.add(10, tick)
 
     while True: # not checker.dead:
         try:
