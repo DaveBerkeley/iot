@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import sys
+import os
 import json
 import time
 import datetime
@@ -15,7 +16,11 @@ import broker
 #
 #
 
+verbose = True
+
 def log(*args):
+    if not verbose:
+        return
     now = datetime.datetime.now()
     ymd = now.strftime("%Y/%m/%d")
     hms = now.strftime("%H:%M:%S.%f")
@@ -23,32 +28,60 @@ def log(*args):
     for arg in args:
         print arg,
     print
-#
-#
 
-next_rid = int(time.time())
+#
+#   Send command to the jsonrpc when there is room on the gateway.
 
-def make_rid():
-    global next_rid
-    next_rid += 1
-    return next_rid & 0xFF
+class SendQueue:
+
+    def __init__(self):
+        self.free = 2
+        self.q = []
+
+    def tx(self, cmd):
+        self.q.append(cmd)
+        self.flush()
+
+    def on_gateway(self, info):
+        free, bsize = info
+        #print free, bsize
+        self.free = free
+        self.flush()
+
+    def flush(self):
+        while self.free > 1:
+            if not self.q:
+                break
+            cmd, self.q = self.q[0], self.q[1:]
+            cmd()
+            self.free -= 1
+
+txq = SendQueue()
 
 #
 #
 
 class Command:
 
+    next_rid = os.getpid()
+
     lut = {} # {rid : command} map
 
-    def __init__(self, fn, *args, **kwargs):
+    def __init__(self, txq, fn, *args, **kwargs):
+        self.txq = txq
         self.fn = fn
-        self.rid = make_rid()
+        self.rid = self.make_rid()
         self.args = args
         self.kwargs = kwargs
         self.lut[self.rid] = self
         self.done = False
         self.ack = self.kill
         self.nak = self.kill
+
+    @staticmethod
+    def make_rid():
+        Command.next_rid += 1
+        return Command.next_rid & 0xFF
 
     def kill(self, *args):
         if not self.done:
@@ -63,12 +96,16 @@ class Command:
                 if self.kill():
                     fn(info)
             return inner
-        self.ack = handler(ack)
-        self.nak = handler(nak)
+        if ack:
+            self.ack = handler(ack)
+        if nak:
+            self.nak = handler(nak)
 
     def __call__(self):
         try:
-            return self.fn(self.rid, *self.args, **self.kwargs)
+            def fn():
+                self.fn(self.rid, *self.args, **self.kwargs)
+            self.txq.tx(fn)
         except Exception, ex:
             self.nak(ex)
 
@@ -85,7 +122,8 @@ class Command:
         if c:
             c.response(info)
         else:
-            log("command not found", rid, info)
+            #log("command not found", rid, info)
+            pass
 
 #
 #
@@ -99,16 +137,17 @@ class Retry:
 
     def __call__(self):
         Command.__call__(self)
-        if self.trys > 0:
-            self.sched.add(self.get_timeout(), self.timeout_fn)
-            self.trys -= 1
+        if self.trys <= 0:
+            return
+        self.sched.add(self.get_timeout(), self.timeout_fn)
+        self.trys -= 1
 
     def get_timeout(self):
         # overide for eg. exponential backoff
         return self.timeout
 
     def timeout_fn(self):
-        log("timeout", self.trys, self.fn)
+        #log("timeout", self.trys, self.fn)
         if self.done:
             return
         if self.trys > 0:
@@ -119,44 +158,98 @@ class Retry:
 #
 #
 
-class InfoReq(Command, Retry):
+class FlashInfoReq(Command, Retry):
 
-    def __init__(self, dev, sched, ack, nak):
-        Command.__init__(self, dev.flash_info_req)
-        Retry.__init__(self, sched, trys=5)
+    def __init__(self, dev, sched, ack=None, nak=None):
+        Command.__init__(self, txq, dev.flash_info_req)
+        Retry.__init__(self, sched, trys=5, timeout=1)
         self.set_ack_nak(ack, nak)
-        self.timeout = 1
 
     def __call__(self):
         Retry.__call__(self)
 
     def get_timeout(self):
+        # exponential backoff
         n = self.timeout
         self.timeout *= 2
         return n
 
     def response(self, info):
+        if info.get("cmd") != "info":
+            self.nak(info)
+            return
         size = info.get("blocks", 0) * info.get("size", 0)
-        #log("response", info)
+        packet = info.get("packet", 0)
         if size:
-            self.ack(info)
+            self.ack((size, packet))
         else:
             self.nak("no flash fitted")
 
 #
 #
 
+class FlashRecordReq(Command, Retry):
+
+    def __init__(self, dev, sched, rec, ack=None, nak=None):
+        Command.__init__(self, txq, dev.flash_record_req, rec)
+        Retry.__init__(self, sched, trys=5, timeout=10)
+        self.set_ack_nak(ack, nak)
+
+    def __call__(self):
+        Retry.__call__(self)
+
+    def response(self, info):
+        if info.get("cmd") == "record":
+            self.ack(info)
+
+#
+#
+
 class Checker:
+
     def __init__(self, dev, sched):
         self.dev = dev
         self.sched = sched
+        self.dead = False
+
+    def info_req(self):
+        FlashInfoReq(self.dev, self.sched, self.info_good, self.fail)()
+
+    def rec_req(self, rec):
+        FlashRecordReq(self.dev, self.sched, rec, self.rec_good, self.fail)()
+
     def start(self):
-        c = InfoReq(self.dev, self.sched, self.info_good, self.info_fail)
-        c()
-    def info_fail(self, info):
-        log("info fail", info)
+        self.info_req()
+
+    def fail(self, info):
+        print "info fail", info
+        self.dead = True
+
     def info_good(self, info):
-        log("info", info)
+        #log("size", info)
+        size, buff = info
+        print "found flash size", size, "buffsize", buff
+        # start requesting the slots
+        self.recs = {}
+        for i in range(8):
+            self.rec_req(i)
+            self.recs[i] = True
+
+    def rec_good(self, info):
+
+        slot = info["slot"]
+
+        print slot,
+        print info["name"],
+        print "%08d" % info["addr"],
+        print "%06d" % info["size"],
+        print "%04X" % info["crc"],
+        print
+
+        if self.recs.get(slot):
+            del self.recs[slot]
+        if not len(self.recs):
+            self.dead = True
 
 #
 #   Decouple MQTT messages from the reader thread
@@ -193,7 +286,9 @@ class MqttReader:
             handler(msg)
 
 #
+#   Not really a scheduler so much as an event generator.
 #
+#   Hard to get it simpler than this.
 
 class Scheduler:
 
@@ -201,7 +296,6 @@ class Scheduler:
         self.q = []
 
     def add(self, dt, fn):
-        #log("sched", dt, fn)
         t = time.time() + dt
         self.q.append((t, fn))
         self.q.sort()
@@ -240,19 +334,20 @@ def flash_check(devname, jsonserver, mqttserver):
             if not rid is None:
                 Command.on_response(rid, info)
         elif ident == "G":
-            log("TODO", info)
+            txq.on_gateway(info)
         else:
-            log("Unknown ident", ident, info)
+            raise Exception(("Unknown ident", ident, info))
 
     checker.start()
 
-    while True: # not checker.dead:
+    while not checker.dead:
         try:
             reader.poll(mqtt_handler)
             sched.poll()
         except KeyboardInterrupt:
             break
-        except Exception:
+        except Exception, ex:
+            print ex
             break
 
     #checker.close()
