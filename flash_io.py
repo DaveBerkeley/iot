@@ -591,7 +591,7 @@ class Checker:
         size = len(raw)
         del raw
 
-        print "verify '%s' slot=%d size=%d crc=%04X" % (fname, slot, size, crc)
+        print "verify '%s' size=%d crc=%04X against slot=%d" % (fname, size, crc, slot)
 
         def on_slot(info):
             okay = False
@@ -612,7 +612,7 @@ class Checker:
                 print "No Flash Fitted"
                 self.dead = True
 
-            print "Found", size, "flash"
+            #print "Found", size, "flash"
             self.rec_req(on_slot, slot)
 
         self.info_req(on_info)
