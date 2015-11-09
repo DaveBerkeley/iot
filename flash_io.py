@@ -363,6 +363,32 @@ class FlashSlotWrite(Command, Retry):
             self.nak(info)
 
 #
+#
+
+class FlashReadReq(Command, Retry):
+
+    def __init__(self, dev, sched, addr, size, ack=None, nak=None):
+        Command.__init__(self, txq, dev.flash_read_req, addr, size)
+        Retry.__init__(self, sched, trys=5, timeout=1)
+        self.set_ack_nak(ack, nak)
+
+    def get_timeout(self):
+        # exponential backoff
+        n = self.timeout
+        self.timeout *= 2
+        return n
+
+    def __call__(self):
+        Retry.__call__(self)
+
+    def response(self, info):
+        print "xx", info
+        if info.get("cmd") == "written":
+            self.ack(info)
+        else:
+            self.nak(info)
+
+#
 #   Run a set of commands in parallel
 
 class Batch:
@@ -458,6 +484,9 @@ class Checker:
     def write_slot(self, ack, slot, slotname, addr, size, crc):
         name = make_slot_name(slot, slotname)
         FlashSlotWrite(self.dev, self.sched, slot, name, addr, size, crc, ack, self.fail)()
+
+    def read_req(self, ack, addr, size):
+        FlashReadReq(self.dev, self.sched, addr, size, ack, self.fail)()
 
     #
 
@@ -617,10 +646,49 @@ class Checker:
 
         self.info_req(on_info)
 
+    def read_file(self, fname, slot):
+        print "Read File", fname, "from slot", slot
+        block = {}
+
+        f = open(fname, "w")
+        block["f"] = f
+
+        def on_read(info):
+            print info
+            # TODO
+            if requests.done():
+                self.dead = True
+
+        def on_slot(info):
+            addr = info.get("addr")
+            size = info.get("size")
+            print addr, size, block
+
+            for addr in range(0, size, block["size"]):
+                end = min(addr + block["size"], size)
+                s = end - addr
+                requests.run(self.read_req, on_read, addr, s)
+
+        def on_info(info):
+            size, pbuff = info
+            if not size:
+                print "No Flash Fitted"
+                self.dead = True
+
+            assert txq.bsize, "need to know gateway SaF buffer size"
+            block["size"] = min(pbuff, txq.bsize)
+
+            # request the slot info
+            self.rec_req(on_slot, slot)
+
+        # chain the requests
+        requests = Chain()
+        self.info_req(on_info)
+
 #
 #   Flash IO main function.
 
-def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name, verify):
+def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name, verify, read):
     server = jsonrpclib.Server('http://%s:8888' % jsonserver)
 
     dev = DeviceProxy(server, devname)
@@ -631,8 +699,10 @@ def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name, 
 
     if dir_req:
         checker.slot_request(slot)
-    if verify:
+    elif verify:
         checker.verify_file(fname, slot)
+    elif read:
+        checker.read_file(fname, slot)
     elif addr != None:
         checker.write_file(addr, fname, slot, name)
 
@@ -664,6 +734,7 @@ if __name__ == "__main__":
     p.add_option("-f", "--fname", dest="fname")
     p.add_option("-n", "--name", dest="name")
     p.add_option("-V", "--verify", dest="verify", action="store_true")
+    p.add_option("-R", "--read", dest="read", action="store_true")
 
     opts, args = p.parse_args()
 
@@ -671,6 +742,6 @@ if __name__ == "__main__":
     mqttserver = opts.mqtt
     devname = opts.dev
 
-    flash_io(devname, jsonserver, mqttserver, opts.dir, opts.addr, opts.slot, opts.fname, opts.name, opts.verify)
+    flash_io(devname, jsonserver, mqttserver, opts.dir, opts.addr, opts.slot, opts.fname, opts.name, opts.verify, opts.read)
 
 # FIN
