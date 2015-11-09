@@ -3,6 +3,7 @@
 import sys
 import json
 import time
+import datetime
 import optparse
 import Queue
 
@@ -11,6 +12,17 @@ import jsonrpclib
 from jeenet.system.core import DeviceProxy
 import broker
 
+#
+#
+
+def log(*args):
+    now = datetime.datetime.now()
+    ymd = now.strftime("%Y/%m/%d")
+    hms = now.strftime("%H:%M:%S.%f")
+    print ymd + " " + hms[:-3],
+    for arg in args:
+        print arg,
+    print
 #
 #
 
@@ -34,9 +46,31 @@ class Command:
         self.args = args
         self.kwargs = kwargs
         self.lut[self.rid] = self
+        self.done = False
+        self.ack = self.kill
+        self.nak = self.kill
+
+    def kill(self, *args):
+        if not self.done:
+            self.done = True
+            self.remove()
+            return True
+        return False
+
+    def set_ack_nak(self, ack, nak):
+        def handler(fn):
+            def inner(info):
+                if self.kill():
+                    fn(info)
+            return inner
+        self.ack = handler(ack)
+        self.nak = handler(nak)
 
     def __call__(self):
-        return self.fn(self.rid, *self.args, **self.kwargs)
+        try:
+            return self.fn(self.rid, *self.args, **self.kwargs)
+        except Exception, ex:
+            self.nak(ex)
 
     def response(self, info):
         raise Exception("implement in subclass")
@@ -51,39 +85,63 @@ class Command:
         if c:
             c.response(info)
         else:
-            print "command not found", rid, info
+            log("command not found", rid, info)
 
 #
 #
 
-class InfoReq(Command):
+class Retry:
+
+    def __init__(self, sched, timeout=10, trys=1):
+        self.sched = sched
+        self.timeout = timeout
+        self.trys = trys
+
+    def __call__(self):
+        Command.__call__(self)
+        if self.trys > 0:
+            self.sched.add(self.get_timeout(), self.timeout_fn)
+            self.trys -= 1
+
+    def get_timeout(self):
+        # overide for eg. exponential backoff
+        return self.timeout
+
+    def timeout_fn(self):
+        log("timeout", self.trys, self.fn)
+        if self.done:
+            return
+        if self.trys > 0:
+            self()
+        else:
+            self.nak("timeout")
+
+#
+#
+
+class InfoReq(Command, Retry):
 
     def __init__(self, dev, sched, ack, nak):
         Command.__init__(self, dev.flash_info_req)
-        self.ack = ack
-        self.nak = nak
-        self.done = False
-        sched.add(10, self.timeout)
+        Retry.__init__(self, sched, trys=5)
+        self.set_ack_nak(ack, nak)
+        self.timeout = 1
 
     def __call__(self):
-        try:
-            Command.__call__(self)
-        except Exception, ex:
-            self.done = True
-            self.nak(ex)
+        Retry.__call__(self)
+
+    def get_timeout(self):
+        n = self.timeout
+        self.timeout *= 2
+        return n
 
     def response(self, info):
-        self.remove()
-        self.done = True
         size = info.get("blocks", 0) * info.get("size", 0)
+        #log("response", info)
         if size:
             self.ack(info)
         else:
             self.nak("no flash fitted")
-
-    def timeout(self):
-        if not self.done:
-            self.nak("timeout")
 
 #
 #
@@ -96,9 +154,9 @@ class Checker:
         c = InfoReq(self.dev, self.sched, self.info_good, self.info_fail)
         c()
     def info_fail(self, info):
-        print "info fail", info
+        log("info fail", info)
     def info_good(self, info):
-        print "info", info
+        log("info", info)
 
 #
 #   Decouple MQTT messages from the reader thread
@@ -143,6 +201,7 @@ class Scheduler:
         self.q = []
 
     def add(self, dt, fn):
+        #log("sched", dt, fn)
         t = time.time() + dt
         self.q.append((t, fn))
         self.q.sort()
@@ -181,23 +240,19 @@ def flash_check(devname, jsonserver, mqttserver):
             if not rid is None:
                 Command.on_response(rid, info)
         elif ident == "G":
-            print "TODO", info
+            log("TODO", info)
         else:
-            print "Unknown ident", ident, info
+            log("Unknown ident", ident, info)
 
     checker.start()
-
-    def tick():
-        print "tick"
-        sched.add(10, tick)
-
-    sched.add(10, tick)
 
     while True: # not checker.dead:
         try:
             reader.poll(mqtt_handler)
             sched.poll()
         except KeyboardInterrupt:
+            break
+        except Exception:
             break
 
     #checker.close()
