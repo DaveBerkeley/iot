@@ -231,6 +231,8 @@ class Checker:
         print "found flash size", size, "buffsize", buff
         # start requesting the slots
         self.recs = {}
+        self.render = []
+        self.to_see = 0
         for i in range(8):
             self.rec_req(i)
             self.recs[i] = True
@@ -239,18 +241,27 @@ class Checker:
 
         slot = info["slot"]
 
-        print slot,
-        print info["name"],
-        print "%08d" % info["addr"],
-        print "%06d" % info["size"],
-        print "%04X" % info["crc"],
-        print
+        txt = "%d %s" % (slot, info["name"])
+        txt += " %8d" % info["addr"]
+        txt += " %6d" % info["size"]
+        txt += " %04X" % info["crc"]
+        self.render.append(txt)
+        self.render.sort()
+
+        while self.render:
+            if not self.render[0].startswith(str(self.to_see)):
+                break
+            print self.render[0]
+            self.render = self.render[1:]
+            self.to_see += 1
 
         if self.recs.get(slot):
             del self.recs[slot]
+
         if not len(self.recs):
             self.dead = True
-
+            return
+        
 #
 #   Decouple MQTT messages from the reader thread
 
@@ -321,7 +332,7 @@ def flash_check(devname, jsonserver, mqttserver):
     checker = Checker(dev, sched)
     reader = MqttReader()
 
-    mqtt = broker.Broker("flash_check_" + time.ctime(), server=mqttserver)
+    mqtt = broker.Broker("flash_io_" + time.ctime(), server=mqttserver)
     mqtt.subscribe("home/jeenet/" + devname, reader.on_device)
     mqtt.subscribe("home/jeenet/gateway", reader.on_gateway)
 
