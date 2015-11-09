@@ -30,6 +30,74 @@ def log(*args):
     print
 
 #
+#   Decouple MQTT messages from the reader thread
+
+class MqttReader:
+
+    def __init__(self, devname, server):
+        self.q = Queue.Queue()
+        self.mqtt = broker.Broker("flash_io_" + time.ctime(), server=server)
+        self.mqtt.subscribe("home/jeenet/" + devname, self.on_device)
+        self.mqtt.subscribe("home/jeenet/gateway", self.on_gateway)
+
+    def start(self):
+        self.mqtt.start()
+
+    def stop(self):
+        self.mqtt.stop()
+        self.mqtt.join()
+
+    def add(self, ident, info):
+        self.q.put((ident, info))
+
+    def on_device(self, x):
+        data = json.loads(x.payload)
+        f = data.get("flash")
+        if f:
+            self.add("D", f)
+
+    def on_gateway(self, x):
+        data = json.loads(x.payload)
+        p = data.get("packets")
+        if p:
+            self.add("G", p)
+
+    def pop(self, timeout=0.1):
+        try:
+            return self.q.get(True, timeout)
+        except Queue.Empty:
+            return None
+
+    def poll(self, handler):
+        msg = self.pop()
+        if not msg is None:
+            handler(msg)
+
+#
+#   Not really a scheduler so much as an event generator.
+#
+#   Hard to get it simpler than this.
+
+class Scheduler:
+
+    def __init__(self):
+        self.q = []
+
+    def add(self, dt, fn):
+        t = time.time() + dt
+        self.q.append((t, fn))
+        self.q.sort()
+
+    def poll(self):
+        now = time.time()
+        while len(self.q):
+            t, fn = self.q[0]
+            if t > now:
+                break
+            self.q.pop(0)
+            fn()
+
+#
 #   Send command to the jsonrpc when there is room on the gateway.
 
 class SendQueue:
@@ -43,8 +111,8 @@ class SendQueue:
         self.flush()
 
     def on_gateway(self, info):
+        # callback from MQTT notification
         free, bsize = info
-        #print free, bsize
         self.free = free
         self.flush()
 
@@ -118,6 +186,7 @@ class Command:
 
     @staticmethod
     def on_response(rid, info):
+        # callback for MQTT notify
         c = Command.lut.get(rid)
         if c:
             c.response(info)
@@ -126,7 +195,7 @@ class Command:
             pass
 
 #
-#
+#   Implement retry / timeout for commands
 
 class Retry:
 
@@ -201,6 +270,73 @@ class FlashRecordReq(Command, Retry):
     def response(self, info):
         if info.get("cmd") == "record":
             self.ack(info)
+        else:
+            self.nak(info)
+
+#
+#
+
+class FlashCrcReq(Command, Retry):
+
+    def __init__(self, dev, sched, addr, size, ack=None, nak=None):
+        Command.__init__(self, txq, dev.flash_crc_req, addr, size)
+        Retry.__init__(self, sched, trys=5, timeout=10)
+        self.set_ack_nak(ack, nak)
+
+    def __call__(self):
+        Retry.__call__(self)
+
+    def response(self, info):
+        if info.get("cmd") == "crc":
+            self.ack(info)
+        else:
+            self.nak(info)
+
+#
+#   Run a set of commands in parallel
+
+class Batch:
+
+    def __init__(self):
+        self.doing = {}
+
+    def run(self, fn, ack, *args, **kwargs):
+        def xack(info):
+            del self.doing[xack]
+            ack(info)
+
+        self.doing[xack] = True
+        fn(xack, *args, **kwargs)
+
+    def done(self):
+        return len(self.doing) == 0
+
+#
+#   Run a set of commands in sequence
+
+class Chain:
+
+    def __init__(self):
+        self.doing = []
+
+    def run(self, fn, ack, *args, **kwargs):
+        def xack(info):
+            # remove the command from the start of the list
+            self.doing = self.doing[1:]
+            ack(info)
+            if not self.done():
+                # run the next command in the list
+                fn, cb, a, k = self.doing[0]
+                fn(cb, *a, **k)
+
+        # add the command to the end of the list
+        self.doing.append((fn, xack, args, kwargs))
+        # run it now if it is the first command
+        if len(self.doing) == 1:
+            fn(xack, *args, **kwargs)
+
+    def done(self):
+        return len(self.doing) == 0
 
 #
 #
@@ -212,116 +348,60 @@ class Checker:
         self.sched = sched
         self.dead = False
 
-    def info_req(self):
-        FlashInfoReq(self.dev, self.sched, self.info_good, self.fail)()
-
-    def rec_req(self, rec):
-        FlashRecordReq(self.dev, self.sched, rec, self.rec_good, self.fail)()
-
-    def start(self):
-        self.info_req()
-
     def fail(self, info):
         print "fail", info
         self.dead = True
+
+    #   Flash Commands
+
+    def info_req(self, ack):
+        FlashInfoReq(self.dev, self.sched, ack, self.fail)()
+
+    def rec_req(self, ack, rec):
+        FlashRecordReq(self.dev, self.sched, rec, ack, self.fail)()
+
+    def crc_req(self, ack, addr, size):
+        FlashCrcReq(self.dev, self.sched, addr, size, ack, self.fail)()
+
+    #
+
+    def dir_request(self):
+        self.info_req(self.info_good)
 
     def info_good(self, info):
         #log("size", info)
         size, buff = info
         print "found flash size", size, "buffsize", buff
-        # start requesting the slots
-        self.recs = {}
+        # chain requesting the slots
+        self.recs = Chain()
         for i in range(8):
-            self.rec_req(i)
-            self.recs[i] = True
+            self.recs.run(self.rec_req, self.rec_good, i)
 
     def rec_good(self, info):
-
         slot = info["slot"]
+        addr = info["addr"]
+        size = info["size"]
+        crc = info["crc"]
 
         fmt = "%02d"
         txt = fmt % slot
         txt += " %s" % info["name"]
-        txt += " %8d" % info["addr"]
-        txt += " %6d" % info["size"]
-        txt += " %04X" % info["crc"]
+        txt += " %8d" % addr
+        txt += " %6d" % size
+        txt += " %04X" % crc
 
-        print txt
+        def ack(info):
+            okay = "Error"
+            if info.get("crc") == crc:
+                if info.get("addr") == addr:
+                    if info.get("size") == size:
+                        okay = "Ok"
+            print txt, okay
+            if self.recs.done():
+                self.dead = True
 
-        if self.recs.get(slot):
-            del self.recs[slot]
-
-        if not len(self.recs):
-            self.dead = True
-            return
-        
-#
-#   Decouple MQTT messages from the reader thread
-
-class MqttReader:
-
-    def __init__(self, devname, server):
-        self.q = Queue.Queue()
-        self.mqtt = broker.Broker("flash_io_" + time.ctime(), server=server)
-        self.mqtt.subscribe("home/jeenet/" + devname, self.on_device)
-        self.mqtt.subscribe("home/jeenet/gateway", self.on_gateway)
-
-    def start(self):
-        self.mqtt.start()
-
-    def stop(self):
-        self.mqtt.stop()
-        self.mqtt.join()
-
-    def add(self, ident, info):
-        self.q.put((ident, info))
-
-    def on_device(self, x):
-        data = json.loads(x.payload)
-        f = data.get("flash")
-        if f:
-            self.add("D", f)
-
-    def on_gateway(self, x):
-        data = json.loads(x.payload)
-        p = data.get("packets")
-        if p:
-            self.add("G", p)
-
-    def pop(self, timeout=0.1):
-        try:
-            return self.q.get(True, timeout)
-        except Queue.Empty:
-            return None
-
-    def poll(self, handler):
-        msg = self.pop()
-        if not msg is None:
-            handler(msg)
-
-#
-#   Not really a scheduler so much as an event generator.
-#
-#   Hard to get it simpler than this.
-
-class Scheduler:
-
-    def __init__(self):
-        self.q = []
-
-    def add(self, dt, fn):
-        t = time.time() + dt
-        self.q.append((t, fn))
-        self.q.sort()
-
-    def poll(self):
-        now = time.time()
-        while len(self.q):
-            t, fn = self.q[0]
-            if t > now:
-                break
-            self.q.pop(0)
-            fn()
+        # chain the CRC request
+        self.recs.run(self.crc_req, ack, addr, size)
 
 #
 #   Flash Check main function.
@@ -346,7 +426,7 @@ def flash_check(devname, jsonserver, mqttserver):
         else:
             raise Exception(("Unknown ident", ident, info))
 
-    checker.start()
+    checker.dir_request()
     reader.start()
 
     while not checker.dead:
