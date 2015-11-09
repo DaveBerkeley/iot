@@ -1,14 +1,18 @@
 #!/usr/bin/python
 
 import sys
-import os
 import json
 import time
 import datetime
 import optparse
 import Queue
+import base64
 
+# https://github.com/joshmarshall/jsonrpclib
 import jsonrpclib
+
+# https://github.com/cristianav/PyCRC
+from PyCRC.CRC16 import CRC16
 
 from jeenet.system.core import DeviceProxy
 import broker
@@ -104,6 +108,7 @@ class SendQueue:
 
     def __init__(self):
         self.free = 2
+        self.bsize = 0
         self.q = []
 
     def tx(self, cmd):
@@ -114,6 +119,7 @@ class SendQueue:
         # callback from MQTT notification
         free, bsize = info
         self.free = free
+        self.bsize = bsize
         self.flush()
 
     def flush(self):
@@ -131,7 +137,7 @@ txq = SendQueue()
 
 class Command:
 
-    next_rid = os.getpid()
+    next_rid = int(time.time()*1000)
 
     lut = {} # {rid : command} map
 
@@ -293,6 +299,31 @@ class FlashCrcReq(Command, Retry):
             self.nak(info)
 
 #
+#
+
+class FlashWriteReq(Command, Retry):
+
+    def __init__(self, dev, sched, addr, b64, ack=None, nak=None):
+        Command.__init__(self, txq, dev.flash_write, addr, b64, True)
+        Retry.__init__(self, sched, trys=5, timeout=1)
+        self.set_ack_nak(ack, nak)
+
+    def get_timeout(self):
+        # exponential backoff
+        n = self.timeout
+        self.timeout *= 2
+        return n
+
+    def __call__(self):
+        Retry.__call__(self)
+
+    def response(self, info):
+        if info.get("cmd") == "written":
+            self.ack(info)
+        else:
+            self.nak(info)
+
+#
 #   Run a set of commands in parallel
 
 class Batch:
@@ -310,6 +341,9 @@ class Batch:
 
     def done(self):
         return len(self.doing) == 0
+
+    def size(self):
+        return len(self.doing)
 
 #
 #   Run a set of commands in sequence
@@ -338,6 +372,9 @@ class Chain:
     def done(self):
         return len(self.doing) == 0
 
+    def size(self):
+        return len(self.doing)
+
 #
 #
 
@@ -365,6 +402,9 @@ class Checker:
     def crc_req(self, ack, addr, size):
         FlashCrcReq(self.dev, self.sched, addr, size, ack, self.fail)()
 
+    def write_req(self, ack, addr, b64):
+        FlashWriteReq(self.dev, self.sched, addr, b64, ack, self.fail)()
+
     #
 
     def slot_request(self, slot=None):
@@ -378,7 +418,7 @@ class Checker:
 
             txt = "%02d %s %8d %6d %04X" % (slot, info["name"], addr, size, crc)
 
-            def ack(info):
+            def on_crc(info):
                 # handler for crc response
                 okay = "Error, crc=%04X" % info.get("crc")
                 if info.get("crc") == crc:
@@ -386,30 +426,121 @@ class Checker:
                         if info.get("size") == size:
                             okay = "Ok"
                 print txt, okay
-                if self.recs.done():
+                if requests.done():
                     self.dead = True
 
             # chain the CRC request
-            self.recs.run(self.crc_req, ack, addr, size)
+            requests.run(self.crc_req, on_crc, addr, size)
 
         def on_info(info):
             # handler for flash info response
             size, buff = info
             print "found flash size", size, "buffsize", buff
-            # chain requesting the slots
-            self.recs = Chain()
             if slot is None:
                 for i in range(8):
-                    self.recs.run(self.rec_req, on_slot, i)
+                    requests.run(self.rec_req, on_slot, i)
             else:
-                self.recs.run(self.rec_req, on_slot, slot)
+                requests.run(self.rec_req, on_slot, slot)
 
+        # chain the requests
+        requests = Chain()
+        self.info_req(on_info)
+
+    #
+    #
+
+    def write_file(self, start_addr, fname, slot=None, name="--------"):
+        print "write file", start_addr, fname, slot
+
+        raw = open(fname).read()
+        c = CRC16()
+        crc = c.calculate(raw)
+
+        # XXXXXXXXXXXXX
+        def write_slot(device, slot, slotname, addr, data):
+            if slot == 0:
+                name = slotname or "BOOTDATA"
+            else:
+                name = slotname or "FILEDATA"
+            name += "-" * 8
+            name = name[:8]
+            device.flash_record(make_rid(), slot, name, addr, len(data), crc)
+
+        def write_slot():
+            if slot is None:
+                self.dead = True
+                return
+
+            print "Write slot", slot, start_addr, len(raw), name, crc, "TODO"
+            self.dead = True
+
+        def verify():
+            print "Verify ..."
+
+            def on_crc(info):
+                okay = False
+                if info.get("crc") == crc:
+                    if info.get("addr") == start_addr:
+                        if info.get("size") == len(raw):
+                            okay = True
+
+                if not okay:
+                    print "Verify failed", "%04X" % crc, "got", "%04X" % info.get("crc")
+                    self.dead = True
+                else:
+                    print "Verified okay"
+                    write_slot()
+
+            self.crc_req(on_crc, start_addr, len(raw))
+
+        def make_ack(addr, size, crc, b64):
+            # save the loop state as a closure
+            def on_write(info):
+                okay = False
+                if info.get("addr") == addr:
+                    if info.get("size") == size:
+                        if info.get("crc") == crc:
+                            print "\r            \r",
+                            print requests.size(),
+                            sys.stdout.flush()
+                            okay = True
+
+                if not okay:
+                    print "Failed", addr, size, "%04X" % crc
+                    # run again if failed the write
+                    requests.run(self.write_req, on_write, addr, b64)
+                if requests.done():
+                    verify()
+            return on_write
+
+        def on_info(info):
+            # handler for flash info response
+            size, buff = info
+            print "found flash size", size, "buffsize", buff
+            assert txq.bsize, "need to know gateway SaF buffer size"
+
+            size = min(buff, txq.bsize)
+            for addr in range(0, len(raw), size):
+                d = raw[addr:addr+size]
+                b64 = base64.b64encode(d)
+                c = CRC16()
+                crc = c.calculate(d)
+
+                write_addr = addr + start_addr
+                ack = make_ack(write_addr, len(d), crc, b64)
+                requests.run(self.write_req, ack, write_addr, b64)
+
+            if len(raw) == 0:
+                verify()
+
+        # batch the requests
+        requests = Chain()
         self.info_req(on_info)
 
 #
-#   Flash Check main function.
+#   Flash IO main function.
 
-def flash_check(devname, jsonserver, mqttserver):
+def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name):
     server = jsonrpclib.Server('http://%s:8888' % jsonserver)
 
     dev = DeviceProxy(server, devname)
@@ -429,7 +560,11 @@ def flash_check(devname, jsonserver, mqttserver):
         else:
             raise Exception(("Unknown ident", ident, info))
 
-    checker.slot_request()
+    if dir_req:
+        checker.slot_request()
+    if addr != None:
+        checker.write_file(addr, fname, slot, name)
+
     reader.start()
 
     while not checker.dead:
@@ -442,8 +577,6 @@ def flash_check(devname, jsonserver, mqttserver):
             print ex
             break
 
-    #checker.close()
-
     reader.stop()
 
 #
@@ -454,6 +587,11 @@ if __name__ == "__main__":
     p.add_option("-j", "--json", dest="json", default="jeenet")
     p.add_option("-m", "--mqtt", dest="mqtt", default="mosquitto")
     p.add_option("-d", "--dev", dest="dev")
+    p.add_option("-D", "--dir", dest="dir", action="store_true")
+    p.add_option("-a", "--addr", dest="addr", type="int")
+    p.add_option("-s", "--slot", dest="slot", type="int")
+    p.add_option("-f", "--fname", dest="fname")
+    p.add_option("-n", "--name", dest="name")
 
     opts, args = p.parse_args()
 
@@ -461,6 +599,6 @@ if __name__ == "__main__":
     mqttserver = opts.mqtt
     devname = opts.dev
 
-    flash_check(devname, jsonserver, mqttserver)
+    flash_io(devname, jsonserver, mqttserver, opts.dir, opts.addr, opts.slot, opts.fname, opts.name)
 
 # FIN
