@@ -343,7 +343,7 @@ class FlashSlotWrite(Command, Retry):
         Retry.__call__(self)
 
     def response(self, info):
-        if info.get("cmd") == "crc":
+        if info.get("cmd") == "written":
             self.ack(info)
         else:
             self.nak(info)
@@ -403,6 +403,17 @@ class Chain:
 #
 #
 
+def make_slot_name(slot, name):
+    if slot == 0:
+        name = name or "BOOTDATA"
+    else:
+        name = name or "FILEDATA"
+    name += "-" * 8
+    return name[:8]
+
+#
+#
+
 class Checker:
 
     def __init__(self, dev, sched):
@@ -431,12 +442,7 @@ class Checker:
         FlashWriteReq(self.dev, self.sched, addr, b64, ack, self.fail)()
 
     def write_slot(self, ack, slot, slotname, addr, size, crc):
-        if slot == 0:
-            name = slotname or "BOOTDATA"
-        else:
-            name = slotname or "FILEDATA"
-        name += "-" * 8
-        name = name[:8]
+        name = make_slot_name(slot, slotname)
         FlashSlotWrite(self.dev, self.sched, slot, name, addr, size, crc, ack, self.fail)()
 
     #
@@ -495,14 +501,11 @@ class Checker:
                 self.dead = True
                 return
 
-            size = len(raw)
-            print "Write slot", slot, start_addr, size, name, crc, "TODO"
-
             def ack(info):
-                # TODO : check crc
+                print "Slot %d '%s' written" % (slot, str(name))
                 self.dead = True
 
-            self.write_slot(ack, slot, name, start_addr, size, crc)
+            self.write_slot(ack, slot, name, start_addr, len(raw), crc)
 
         def verify():
             print "Verify ..."
