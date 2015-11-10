@@ -495,9 +495,14 @@ class Checker:
         FlashReadReq(self.dev, self.sched, addr, size, ack, self.fail)()
 
     #
+    #
+
+    #
     #   Slot directory
 
-    def slot_request(self, slot=None):
+    def slot_request(self, r, slot=None):
+
+        r.begin(slot)
 
         def on_slot(info):
             # handler for slot response
@@ -508,14 +513,18 @@ class Checker:
 
             txt = "%02d %s %8d %6d %04X" % (slot, info["name"], addr, size, crc)
 
+            r.on_slot(info)
+
             def on_crc(info):
                 # handler for crc response
-                okay = "Error, crc=%04X" % info.get("crc")
+                okay = False
                 if info.get("crc") == crc:
                     if info.get("addr") == addr:
                         if info.get("size") == size:
-                            okay = "Ok"
-                print txt, okay
+                            okay = True
+
+                r.on_crc(slot, info, okay)
+
                 if requests.done():
                     self.dead = True
 
@@ -525,7 +534,9 @@ class Checker:
         def on_info(info):
             # handler for flash info response
             size, buff = info
-            print "found flash size", size, "buffsize", buff
+
+            r.on_info(info)
+
             if slot is None:
                 for i in range(8):
                     requests.run(self.rec_req, on_slot, i)
@@ -539,8 +550,9 @@ class Checker:
     #
     #   Write File
 
-    def write_file(self, start_addr, fname, slot=None, name="--------"):
-        print "write file", start_addr, fname, slot
+    def write_file(self, r, start_addr, fname, slot=None, name="--------"):
+
+        r.begin(start_addr, fname, slot)
 
         raw = open(fname).read()
         c = CRC16()
@@ -552,13 +564,12 @@ class Checker:
                 return
 
             def ack(info):
-                print "Slot %d '%s' written" % (slot, str(name))
+                r.on_slot(info, slot, name)
                 self.dead = True
 
             self.write_slot(ack, slot, name, start_addr, len(raw), crc)
 
         def verify():
-            print "Verify ..."
 
             def on_crc(info):
                 okay = False
@@ -567,11 +578,11 @@ class Checker:
                         if info.get("size") == len(raw):
                             okay = True
 
+                r.on_verify(info, okay)
+
                 if not okay:
-                    print "Verify failed", "%04X" % crc, "got", "%04X" % info.get("crc")
                     self.dead = True
                 else:
-                    print "Verified okay"
                     write_slot()
 
             self.crc_req(on_crc, start_addr, len(raw))
@@ -583,15 +594,14 @@ class Checker:
                 if info.get("addr") == addr:
                     if info.get("size") == size:
                         if info.get("crc") == crc:
-                            print "\r            \r",
-                            print requests.size(),
-                            sys.stdout.flush()
                             okay = True
 
                 if not okay:
-                    print "Failed", addr, size, "%04X" % crc
                     # run again if failed the write
                     requests.run(self.write_req, on_write, addr, b64)
+
+                r.on_write(info, okay, requests.size())
+
                 if requests.done():
                     verify()
             return on_write
@@ -599,8 +609,9 @@ class Checker:
         def on_info(info):
             # handler for flash info response
             size, buff = info
-            print "found flash size", size, "buffsize", buff
-            assert txq.bsize, "need to know gateway SaF buffer size"
+            assert txq.bsize, "Need to know gateway SaF buffer size"
+
+            r.on_info(info)
 
             size = min(buff, txq.bsize)
             for addr in range(0, len(raw), size):
@@ -623,14 +634,14 @@ class Checker:
     #
     #   Verify File
 
-    def verify_file(self, fname, slot):
+    def verify_file(self, r, fname, slot):
         raw = open(fname).read()
         c = CRC16()
         crc = c.calculate(raw)
         size = len(raw)
         del raw
 
-        print "verify '%s' size=%d crc=%04X against slot=%d" % (fname, size, crc, slot)
+        r.begin(fname, size, crc, slot)
 
         def on_slot(info):
             okay = False
@@ -638,20 +649,18 @@ class Checker:
                 if info.get("crc") == crc:
                     okay = True
 
-            if okay:
-                print "Validates okay"
-            else:
-                print "Files differ size=%d crc=%04X" % (info.get("size"), info.get("crc")) 
+            r.on_slot(info, okay)
 
             self.dead = True
 
         def on_info(info):
             size, _ = info
+
+            r.on_info(info)
+
             if not size:
-                print "No Flash Fitted"
                 self.dead = True
 
-            #print "Found", size, "flash"
             self.rec_req(on_slot, slot)
 
         self.info_req(on_info)
@@ -659,8 +668,10 @@ class Checker:
     #
     #   Read File
 
-    def read_file(self, fname, slot):
-        print "Read File", fname, "from slot", slot
+    def read_file(self, r, fname, slot):
+
+        r.begin(fname, slot)
+
         block = {}
 
         f = open(fname, "w")
@@ -673,13 +684,11 @@ class Checker:
             data = base64.b64decode(data)
 
             if len(data) != size:
-                print "Read Error"
+                r.on_error(info)
                 self.dead = True
                 return
 
-            print "\r              \r",
-            print addr,
-            sys.stdout.flush()
+            r.on_read(info)
 
             f = block["f"]
             f.seek(addr)
@@ -693,7 +702,8 @@ class Checker:
             start_addr = info.get("addr")
             size = info.get("size")
             block["start"] = start_addr
-            print "Reading %d bytes at address %d" % (size, start_addr)
+
+            r.on_slot(info)
 
             for addr in range(0, size, block["size"]):
                 end = min(addr + block["size"], size)
@@ -702,8 +712,10 @@ class Checker:
 
         def on_info(info):
             size, pbuff = info
+
+            r.on_info(info)
+
             if not size:
-                print "No Flash Fitted"
                 self.dead = True
 
             assert txq.bsize, "need to know gateway SaF buffer size"
@@ -717,9 +729,96 @@ class Checker:
         self.info_req(on_info)
 
 #
+#   Renderers
+
+class Renderer:
+    def on_info(self, info):
+        size, buff = info
+        if size:
+            print "found flash size", size, "buffsize", buff
+        else:
+            print "No flash found"
+
+class SlotRenderer(Renderer):
+
+    def __init__(self):
+        self.txt = {}
+
+    def begin(self, slot):
+        print "Slot directory", slot or ""
+
+    def on_slot(self, info):
+        slot = info["slot"]
+        addr = info["addr"]
+        size = info["size"]
+        crc = info["crc"]
+
+        txt = "%02d %s %8d %6d %04X" % (slot, info["name"], addr, size, crc)
+        self.txt[slot] = txt
+
+    def on_crc(self, slot, info, okay):
+        txt = self.txt[slot]
+        if okay:
+            print txt, "Ok"
+        else:
+            print txt, "Error, crc=%04X" % info.get("crc")
+
+class WriteRenderer(Renderer):
+
+    def begin(self, addr, fname, slot):
+        print "Write", fname, "to addr", addr, "slot", slot
+
+    def on_write(self, info, okay, q):
+        if okay:
+            print "\r            \r",
+            print q,
+            sys.stdout.flush()
+        else:
+            addr = info.get("addr")
+            size = info.get("size")
+            crc = info.get("crc")
+            print "Failed", addr, size, "%04X" % crc
+
+    def on_verify(self, info, okay):
+        if okay:
+            print "Verified okay"
+        else:
+            print "Verify failed, crc was %04X" % info.get("crc")
+
+    def on_slot(self, info, slot, name):
+        print "Slot %d '%s' written" % (slot, str(name))
+
+class VerifyRenderer(Renderer):
+
+    def begin(self, fname, size, crc, slot):
+        print "verify '%s' size=%d crc=%04X against slot=%d" % (fname, size, crc, slot)
+
+    def on_slot(self, info, okay):
+        if okay:
+            print "Validates okay"
+        else:
+            print "Files differ size=%d crc=%04X" % (info.get("size"), info.get("crc")) 
+
+class ReadRenderer(Renderer):
+
+    def begin(self, fname, slot):
+        print "Read File", fname, "from slot", slot
+
+    def on_slot(self, info):
+        print "Reading %d bytes at address %d" % (info.get("size"), info.get("addr"))
+
+    def on_read(self, info):
+        print "\r              \r",
+        print info.get("addr"),
+        sys.stdout.flush()
+
+    def on_error(self, info):
+        print "Read Error"
+
+#
 #   Flash IO main function.
 
-def flash_io(opts):
+def flash_io(opts, renderer):
 
     devname = opts.dev
     jsonserver = opts.json
@@ -736,19 +835,19 @@ def flash_io(opts):
     reader = MqttReader(devname, mqttserver)
 
     if opts.dir:
-        checker.slot_request(slot)
+        checker.slot_request(renderer, slot)
     elif opts.verify:
         assert fname, "must have filename"
         assert not slot is None, "must specify slot"
-        checker.verify_file(fname, slot)
+        checker.verify_file(renderer, fname, slot)
     elif opts.read:
         assert fname, "must have filename"
         assert not slot is None, "must specify slot"
-        checker.read_file(fname, slot)
+        checker.read_file(renderer, fname, slot)
     elif opts.addr != None:
         assert fname, "must have filename"
         assert not slot is None, "must specify slot"
-        checker.write_file(opts.addr, fname, slot, opts.name)
+        checker.write_file(renderer, opts.addr, fname, slot, opts.name)
 
     reader.start()
 
@@ -836,6 +935,15 @@ if __name__ == "__main__":
     #fd = FlashDevice(opts.json, opts.mqtt, opts.dev)
     #write_request(fd, 1, "/tmp/dave.txt", 50000, "api_test")
 
-    flash_io(opts)
+    if opts.dir:
+        r = SlotRenderer()
+    elif opts.verify:
+        r = VerifyRenderer()
+    elif opts.read:
+        r = ReadRenderer()
+    else:
+        r = WriteRenderer()
+
+    flash_io(opts, r)
 
 # FIN
