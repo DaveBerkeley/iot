@@ -388,8 +388,7 @@ class FlashReadReq(Command, Retry):
         Retry.__call__(self)
 
     def response(self, info):
-        print "TODO", info
-        if info.get("cmd") == "written":
+        if info.get("cmd") == "read":
             self.ack(info)
         else:
             self.nak(info)
@@ -667,20 +666,38 @@ class Checker:
         block["f"] = f
 
         def on_read(info):
-            print info
-            # TODO
+            addr = info.get("addr") - block["start"]
+            size = info.get("size")
+            data = info.get("data64")
+            data = base64.b64decode(data)
+
+            if len(data) != size:
+                print "Read Error"
+                self.dead = True
+                return
+
+            print "\r              \r",
+            print addr,
+            sys.stdout.flush()
+
+            f = block["f"]
+            f.seek(addr)
+            f.write(data)
+
             if requests.done():
+                f.close()
                 self.dead = True
 
         def on_slot(info):
-            addr = info.get("addr")
+            start_addr = info.get("addr")
             size = info.get("size")
-            print addr, size, block
+            block["start"] = start_addr
+            print "Reading %d bytes at address %d" % (size, start_addr)
 
             for addr in range(0, size, block["size"]):
                 end = min(addr + block["size"], size)
                 s = end - addr
-                requests.run(self.read_req, on_read, addr, s)
+                requests.run(self.read_req, on_read, start_addr + addr, s)
 
         def on_info(info):
             size, pbuff = info
