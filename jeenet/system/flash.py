@@ -67,7 +67,7 @@ class FlashInterface:
 
     def cmd_read(self, info, data):
         start = struct.calcsize("<BLH")
-        req_id, addr, size = struct.unpack("<BLH", data[:size])
+        req_id, addr, size = struct.unpack("<BLH", data[:start])
         # encode data as base64 as JSON won't allow binary.
         info["flash"] = { 
             "cmd" : "read", 
