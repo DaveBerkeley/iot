@@ -7,6 +7,7 @@ import datetime
 import optparse
 import Queue
 import base64
+import copy
 
 # https://github.com/joshmarshall/jsonrpclib
 import jsonrpclib
@@ -718,7 +719,14 @@ class Checker:
 #
 #   Flash IO main function.
 
-def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name, verify, read):
+def flash_io(opts):
+
+    devname = opts.dev
+    jsonserver = opts.json
+    mqttserver = opts.mqtt
+    slot = opts.slot
+    fname = opts.fname
+
     server = jsonrpclib.Server('http://%s:8888' % jsonserver)
 
     dev = DeviceProxy(server, devname)
@@ -727,20 +735,20 @@ def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name, 
     checker = Checker(dev, sched)
     reader = MqttReader(devname, mqttserver)
 
-    if dir_req:
+    if opts.dir:
         checker.slot_request(slot)
-    elif verify:
+    elif opts.verify:
         assert fname, "must have filename"
         assert not slot is None, "must specify slot"
         checker.verify_file(fname, slot)
-    elif read:
+    elif opts.read:
         assert fname, "must have filename"
         assert not slot is None, "must specify slot"
         checker.read_file(fname, slot)
-    elif addr != None:
+    elif opts.addr != None:
         assert fname, "must have filename"
         assert not slot is None, "must specify slot"
-        checker.write_file(addr, fname, slot, name)
+        checker.write_file(opts.addr, fname, slot, opts.name)
 
     reader.start()
 
@@ -755,6 +763,48 @@ def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name, 
             break
 
     reader.stop()
+
+#
+#   API
+
+class FlashDevice:
+
+    def __init__(self, jsonserver, mqttserver, devname):
+        self.json = jsonserver
+        self.mqtt = mqttserver
+        self.dev = devname
+        self.fname = None
+        self.dir = None
+        self.verify = None
+        self.read = None
+
+def slot_request(flash_device, slot=None):
+    fd = copy.copy(flash_device)
+    fd.slot = slot
+    fd.dir = True
+    flash_io(fd)
+
+def verify_request(flash_device, slot, fname):
+    fd = copy.copy(flash_device)
+    fd.slot = slot
+    fd.fname = fname
+    fd.verify = True
+    flash_io(fd)
+
+def read_request(flash_device, slot, fname):
+    fd = copy.copy(flash_device)
+    fd.slot = slot
+    fd.fname = fname
+    fd.read = True
+    flash_io(fd)
+
+def write_request(flash_device, slot, fname, addr, slotname=None):
+    fd = copy.copy(flash_device)
+    fd.slot = slot
+    fd.fname = fname
+    fd.addr = addr
+    fd.name = slotname
+    flash_io(fd)
 
 #
 #
@@ -774,6 +824,18 @@ if __name__ == "__main__":
 
     opts, args = p.parse_args()
 
-    flash_io(opts.dev, opts.json, opts.mqtt, opts.dir, opts.addr, opts.slot, opts.fname, opts.name, opts.verify, opts.read)
+    #fd = FlashDevice(opts.json, opts.mqtt, opts.dev)
+    #slot_request(fd)
+
+    #fd = FlashDevice(opts.json, opts.mqtt, opts.dev)
+    #verify_request(fd, 1, "plot.py")
+
+    #fd = FlashDevice(opts.json, opts.mqtt, opts.dev)
+    #read_request(fd, 1, "/tmp/dave.txt")
+
+    #fd = FlashDevice(opts.json, opts.mqtt, opts.dev)
+    #write_request(fd, 1, "/tmp/dave.txt", 50000, "api_test")
+
+    flash_io(opts)
 
 # FIN
