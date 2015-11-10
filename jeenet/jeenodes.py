@@ -20,6 +20,7 @@ from devices.humidity import HumidityDev
 from devices.voltage import VoltageDev
 from devices.relay import RelayDev
 from devices.magnetometer import MagnetometerDev
+from devices.pulse import PulseDev
 
 arduino = "/dev/arduino"
 if not os.path.exists(arduino):
@@ -56,6 +57,7 @@ known_devices = {
     "PIR Device v1.0" : PirSensor,
     "Relay Device v1.0" : RelayDev,
     "Magnetometer v1.0" : MagnetometerDev,
+    "Pulse Detector v1.0" : PulseDev,
 }
 
 #
