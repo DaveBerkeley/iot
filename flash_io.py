@@ -147,13 +147,18 @@ class SendQueue:
 txq = SendQueue()
 
 #
+#   Wrapper for device proxy commands to the gateway
 #
+#   Map commands to a req_id (rid)
+#   and notify the command when its request arrives.
 
 class Command:
 
+    # make unique request id (rid)
     next_rid = int(time.time()*1000)
 
-    lut = {} # {rid : command} map
+    # {rid : command} map
+    lut = {} 
 
     def __init__(self, txq, fn, *args, **kwargs):
         self.txq = txq
@@ -198,6 +203,7 @@ class Command:
             self.nak(ex)
 
     def response(self, info):
+        # called when message with the same rid is rxd.
         raise Exception("implement in subclass")
 
     def remove(self):
@@ -210,9 +216,6 @@ class Command:
         c = Command.lut.get(rid)
         if c:
             c.response(info)
-        else:
-            #log("command not found", rid, info)
-            pass
 
 #
 #   Implement retry / timeout for commands
@@ -236,16 +239,19 @@ class Retry:
         return self.timeout
 
     def timeout_fn(self):
-        #log("timeout", self.trys, self.fn)
         if self.done:
             return
         if self.trys > 0:
+            # re-run the command
             self()
         else:
             self.nak("timeout")
 
 #
+#   Implement Commmands for each flash_xxx API call.
+
 #
+#   dev.flash_info_req()
 
 class FlashInfoReq(Command, Retry):
 
@@ -275,7 +281,7 @@ class FlashInfoReq(Command, Retry):
             self.nak("no flash fitted")
 
 #
-#
+#   dev.flash_record_req(slot)
 
 class FlashRecordReq(Command, Retry):
 
@@ -294,7 +300,7 @@ class FlashRecordReq(Command, Retry):
             self.nak(info)
 
 #
-#
+#   dev.flash_crc_req
 
 class FlashCrcReq(Command, Retry):
 
@@ -313,7 +319,7 @@ class FlashCrcReq(Command, Retry):
             self.nak(info)
 
 #
-#
+#   dev.flash_write(addr, data, is_b64)
 
 class FlashWriteReq(Command, Retry):
 
@@ -338,7 +344,7 @@ class FlashWriteReq(Command, Retry):
             self.nak(info)
 
 #
-#
+#   dev.flash_record(slot, name, addr,size, crc)
 
 class FlashSlotWrite(Command, Retry):
 
@@ -363,7 +369,7 @@ class FlashSlotWrite(Command, Retry):
             self.nak(info)
 
 #
-#
+#   dev.flash_read_req(addr, size)
 
 class FlashReadReq(Command, Retry):
 
@@ -382,7 +388,7 @@ class FlashReadReq(Command, Retry):
         Retry.__call__(self)
 
     def response(self, info):
-        print "xx", info
+        print "TODO", info
         if info.get("cmd") == "written":
             self.ack(info)
         else:
@@ -489,6 +495,7 @@ class Checker:
         FlashReadReq(self.dev, self.sched, addr, size, ack, self.fail)()
 
     #
+    #   Slot directory
 
     def slot_request(self, slot=None):
 
@@ -530,7 +537,7 @@ class Checker:
         self.info_req(on_info)
 
     #
-    #
+    #   Write File
 
     def write_file(self, start_addr, fname, slot=None, name="--------"):
         print "write file", start_addr, fname, slot
@@ -613,6 +620,9 @@ class Checker:
         requests = Chain()
         self.info_req(on_info)
 
+    #
+    #   Verify File
+
     def verify_file(self, fname, slot):
         raw = open(fname).read()
         c = CRC16()
@@ -645,6 +655,9 @@ class Checker:
             self.rec_req(on_slot, slot)
 
         self.info_req(on_info)
+
+    #
+    #   Read File
 
     def read_file(self, fname, slot):
         print "Read File", fname, "from slot", slot
@@ -700,10 +713,16 @@ def flash_io(devname, jsonserver, mqttserver, dir_req, addr, slot, fname, name, 
     if dir_req:
         checker.slot_request(slot)
     elif verify:
+        assert fname, "must have filename"
+        assert not slot is None, "must specify slot"
         checker.verify_file(fname, slot)
     elif read:
+        assert fname, "must have filename"
+        assert not slot is None, "must specify slot"
         checker.read_file(fname, slot)
     elif addr != None:
+        assert fname, "must have filename"
+        assert not slot is None, "must specify slot"
         checker.write_file(addr, fname, slot, name)
 
     reader.start()
@@ -738,10 +757,6 @@ if __name__ == "__main__":
 
     opts, args = p.parse_args()
 
-    jsonserver = opts.json
-    mqttserver = opts.mqtt
-    devname = opts.dev
-
-    flash_io(devname, jsonserver, mqttserver, opts.dir, opts.addr, opts.slot, opts.fname, opts.name, opts.verify, opts.read)
+    flash_io(opts.dev, opts.json, opts.mqtt, opts.dir, opts.addr, opts.slot, opts.fname, opts.name, opts.verify, opts.read)
 
 # FIN
