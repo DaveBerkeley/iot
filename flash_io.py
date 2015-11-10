@@ -877,33 +877,33 @@ class FlashDevice:
         self.verify = None
         self.read = None
 
-def slot_request(flash_device, slot=None):
+def slot_request(renderer, flash_device, slot=None):
     fd = copy.copy(flash_device)
     fd.slot = slot
     fd.dir = True
-    flash_io(fd)
+    flash_io(fd, renderer)
 
-def verify_request(flash_device, slot, fname):
+def verify_request(renderer, flash_device, slot, fname):
     fd = copy.copy(flash_device)
     fd.slot = slot
     fd.fname = fname
     fd.verify = True
-    flash_io(fd)
+    flash_io(fd, renderer)
 
-def read_request(flash_device, slot, fname):
+def read_request(renderer, flash_device, slot, fname):
     fd = copy.copy(flash_device)
     fd.slot = slot
     fd.fname = fname
     fd.read = True
-    flash_io(fd)
+    flash_io(fd, renderer)
 
-def write_request(flash_device, slot, fname, addr, slotname=None):
+def write_request(renderer, flash_device, slot, fname, addr, slotname=None):
     fd = copy.copy(flash_device)
     fd.slot = slot
     fd.fname = fname
     fd.addr = addr
     fd.name = slotname
-    flash_io(fd)
+    flash_io(fd, renderer)
 
 #
 #
@@ -922,18 +922,6 @@ if __name__ == "__main__":
     p.add_option("-R", "--read", dest="read", action="store_true")
 
     opts, args = p.parse_args()
-
-    #fd = FlashDevice(opts.json, opts.mqtt, opts.dev)
-    #slot_request(fd)
-
-    #fd = FlashDevice(opts.json, opts.mqtt, opts.dev)
-    #verify_request(fd, 1, "plot.py")
-
-    #fd = FlashDevice(opts.json, opts.mqtt, opts.dev)
-    #read_request(fd, 1, "/tmp/dave.txt")
-
-    #fd = FlashDevice(opts.json, opts.mqtt, opts.dev)
-    #write_request(fd, 1, "/tmp/dave.txt", 50000, "api_test")
 
     if opts.dir:
         r = SlotRenderer()
