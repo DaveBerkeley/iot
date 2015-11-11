@@ -668,7 +668,7 @@ class Checker:
     #
     #   Read File
 
-    def read_file(self, r, fname, slot):
+    def read_file(self, r, fname, slot, addr=None, fsize=None):
 
         r.begin(fname, slot)
 
@@ -722,7 +722,11 @@ class Checker:
             block["size"] = min(pbuff, txq.bsize)
 
             # request the slot info
-            self.rec_req(on_slot, slot)
+            if slot is None:
+                d = { "addr" : addr, "size" : fsize }
+                on_slot(d)
+            else:
+                self.rec_req(on_slot, slot)
 
         # chain the requests
         requests = Chain()
@@ -842,9 +846,8 @@ def flash_io(opts, renderer):
         checker.verify_file(renderer, fname, slot)
     elif opts.read:
         assert fname, "must have filename"
-        assert not slot is None, "must specify slot"
-        checker.read_file(renderer, fname, slot)
-    elif opts.addr != None:
+        checker.read_file(renderer, fname, slot, opts.addr, opts.size)
+    elif opts.write:
         assert fname, "must have filename"
         assert not slot is None, "must specify slot"
         checker.write_file(renderer, opts.addr, fname, slot, opts.name)
@@ -890,17 +893,20 @@ def verify_request(renderer, flash_device, slot, fname):
     fd.verify = True
     flash_io(fd, renderer)
 
-def read_request(renderer, flash_device, slot, fname):
+def read_request(renderer, flash_device, slot, fname, addr=None, size=None):
     fd = copy.copy(flash_device)
     fd.slot = slot
     fd.fname = fname
     fd.read = True
+    fd.addr = addr
+    fd.size = size
     flash_io(fd, renderer)
 
 def write_request(renderer, flash_device, slot, fname, addr, slotname=None):
     fd = copy.copy(flash_device)
     fd.slot = slot
     fd.fname = fname
+    fd.write = True
     fd.addr = addr
     fd.name = slotname
     flash_io(fd, renderer)
@@ -913,13 +919,15 @@ if __name__ == "__main__":
     p.add_option("-j", "--json", dest="json", default="jeenet")
     p.add_option("-m", "--mqtt", dest="mqtt", default="mosquitto")
     p.add_option("-d", "--dev", dest="dev")
-    p.add_option("-D", "--dir", dest="dir", action="store_true")
     p.add_option("-a", "--addr", dest="addr", type="int")
     p.add_option("-s", "--slot", dest="slot", type="int")
+    p.add_option("-z", "--size", dest="size", type="int")
     p.add_option("-f", "--fname", dest="fname")
     p.add_option("-n", "--name", dest="name")
+    p.add_option("-D", "--dir", dest="dir", action="store_true")
     p.add_option("-V", "--verify", dest="verify", action="store_true")
     p.add_option("-R", "--read", dest="read", action="store_true")
+    p.add_option("-W", "--write", dest="write", action="store_true")
 
     opts, args = p.parse_args()
 
