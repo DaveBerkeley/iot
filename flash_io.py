@@ -721,11 +721,12 @@ class Checker:
             assert txq.bsize, "need to know gateway SaF buffer size"
             block["size"] = min(pbuff, txq.bsize)
 
-            # request the slot info
             if slot is None:
+                # fake the slot info
                 d = { "addr" : addr, "size" : fsize }
                 on_slot(d)
             else:
+                # request the slot info
                 self.rec_req(on_slot, slot)
 
         # chain the requests
@@ -849,7 +850,6 @@ def flash_io(opts, renderer):
         checker.read_file(renderer, fname, slot, opts.addr, opts.size)
     elif opts.write:
         assert fname, "must have filename"
-        assert not slot is None, "must specify slot"
         checker.write_file(renderer, opts.addr, fname, slot, opts.name)
 
     reader.start()
