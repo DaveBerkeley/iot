@@ -100,7 +100,7 @@ class Command:
         self.args = args
         self.done = False
         def nowt(*args):
-            pass
+            print "callback not set", args
         self.set_ack_nak(nowt, nowt)
         Command.add(rid, self)
 
@@ -113,8 +113,10 @@ class Command:
         return xack
 
     def set_ack_nak(self, ack, nak):
-        self.ack = self.make_cb(ack)
-        self.nak = self.make_cb(nak)
+        if ack:
+            self.ack = self.make_cb(ack)
+        if nak:
+            self.nak = self.make_cb(nak)
 
     def __call__(self):
         self.fn(self.rid, *self.args)
@@ -125,7 +127,7 @@ class Command:
 
     def remove(self):
         if Command.lut.get(self.rid):
-            print "remove", self
+            #print "remove", self
             del Command.lut[self.rid]
             self.done = True
             return True
@@ -134,27 +136,39 @@ class Command:
     @staticmethod
     def on_reply(rid, info):
         cmd = Command.lut.get(rid)
-        print cmd, rid, info
+        #print cmd, rid, info
         if cmd:
             cmd.reply(info)
 
     def timeout(self):
         print "timeout", self
-        if self.remove():
-            self.nak("timeout")
+        self.nak("timeout")
 
 #
 #
 
 class InfoReq(Command):
 
-    def __init__(self, flash, rid):
+    def __init__(self, flash, rid, ack=None, nak=None):
         Command.__init__(self, rid, flash.flash_info_req)
         sched.add(10, self.timeout)
+        self.set_ack_nak(ack, nak)
 
     def reply(self, info):
         if info.get("cmd") == "info":
-            print "ACK", info
+            self.ack(info)
+        else:
+            self.nak(info)
+
+class CrcReq(Command):
+
+    def __init__(self, flash, rid, addr, size, ack=None, nak=None):
+        Command.__init__(self, rid, flash.flash_crc_req, addr, size)
+        sched.add(10, self.timeout)
+        self.set_ack_nak(ack, nak)
+
+    def reply(self, info):
+        if info.get("cmd") == "crc":
             self.ack(info)
         else:
             self.nak(info)
@@ -166,15 +180,21 @@ class Handler:
 
     def __init__(self):
         self.f = Flash()
+        self.dead = False
 
     @staticmethod
     def make_id():
         return Flash.make_id()
 
-    def info_req(self):
+    def info_req(self, ack=None, nak=None):
         rid = Handler.make_id()
-        c = InfoReq(self.f, rid)
-        c()
+        n = nak or self.kill
+        InfoReq(self.f, rid, ack=ack, nak=n)()
+
+    def crc_req(self, addr, size, ack=None, nak=None):
+        rid = Handler.make_id()
+        n = nak or self.kill
+        CrcReq(self.f, rid, addr, size, ack=ack, nak=n)()
 
     def poll(self):
         info = self.f.read()
@@ -183,8 +203,22 @@ class Handler:
             if flash:
                 Command.on_reply(flash.get("rid"), flash)
 
+    def kill(self, *args):
+        print "KILL"
+        self.dead = True
+
     def send(self):
-        self.info_req()
+        def on_crc(info):
+            print info
+
+        def on_info(info):
+            blocks = info.get("blocks")
+            size = info.get("size")
+            total = blocks * size
+            print "Got", total, info
+            self.crc_req(0, 100, ack=on_crc)
+
+        self.info_req(ack=on_info)
 
 
 #
@@ -197,9 +231,7 @@ time.sleep(2)
 
 handler.send()
 
-while True:
-    ##print ".",
-    #sys.stdout.flush()
+while not handler.dead:
     handler.poll()
     sched.poll()
 
