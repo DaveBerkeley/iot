@@ -316,7 +316,8 @@ data = open(filename).read()
 
 addr = 10000
 
-crc = 0x1234
+c = CRC16()
+crc = c.calculate(data)
 slot = struct.pack("<8sLHH", "BOOTDATA", addr, len(data), crc)
 
 def on_written(*args):
