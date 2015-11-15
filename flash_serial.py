@@ -57,11 +57,13 @@ class Flash(FlashInterface):
             if not c:
                 break
             msg += c
-        print `msg`
 
-        return self.parse(msg)
+        node, raw = self.parse(msg)
+        return self.flash_to_info(raw)
 
     def parse(self, msg):
+
+        # Bencode parse the response
 
         class G:
             def __init__(self, msg):
@@ -87,7 +89,6 @@ time.sleep(2)
 
 fl.flash_info_req(Flash.make_id())
 #fl.flash_reboot(Flash.make_id())
-#time.sleep(1)
 
 print fl.read()
 
