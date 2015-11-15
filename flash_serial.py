@@ -235,6 +235,13 @@ class Handler:
         print "KILL"
         self.dead = True
 
+    def chain(self, ack):
+        if ack:
+            ack()
+        else:
+            print "Done"
+            self.dead = True
+
     #
     #
 
@@ -242,17 +249,14 @@ class Handler:
 
         c = CRC16()
         total_crc = c.calculate(data)
-        print "crc", "%04X" % total_crc, total_crc
+        print "writing", len(data), "bytes at", start_addr, "crc", "%04X" % total_crc
 
         def on_crc(info):
+            print "%04X" % info.get("crc")
             if info.get("crc") == total_crc:
                 if info.get("addr") == start_addr:
                     if info.get("size") == len(data):
-                        if ack:
-                            ack(info)
-                        else:
-                            print "Done"
-                            self.dead = True
+                        self.chain(ack)
                         return
             print "Bad CRC", "%04" % info.get("crc"), "expected %04X" % total_crc
             self.dead = True
@@ -270,7 +274,6 @@ class Handler:
                             return
                 print "Error writing block, try again"
                 requests.run(self.write_req, on_written, addr, data)
-                #self.dead = True
             return on_written
 
         def on_info(info):
@@ -316,7 +319,7 @@ addr = 10000
 crc = 0x1234
 slot = struct.pack("<8sLHH", "BOOTDATA", addr, len(data), crc)
 
-def on_written(info):
+def on_written(*args):
     handler.send(0, slot)
 
 handler.send(addr, data, ack=on_written)
