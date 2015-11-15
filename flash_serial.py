@@ -210,6 +210,7 @@ class Handler:
     def send(self):
         def on_crc(info):
             print info
+            self.dead = True
 
         def on_info(info):
             blocks = info.get("blocks")
