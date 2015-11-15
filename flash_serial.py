@@ -1,17 +1,12 @@
 #!/usr/bin/python
 
 import struct
+import time
+
+import serial
 
 from jeenet.system.flash import FlashInterface
-
-last_mid = 0;
-
-def make_mid():
-    global last_mid
-    last_mid += 1
-    if last_mid > 255:
-        last_mid = 1
-    return last_mid
+import jeenet.system.bencode as bencode
 
 class Flash(FlashInterface):
 
@@ -20,13 +15,25 @@ class Flash(FlashInterface):
     ack_flag = 0x8000
     fmt_header = "<BBH"
 
-    def __init__(self):
-        self.dev_id = 1
+    id = 0
+
+    @staticmethod
+    def make_id():
+        Flash.id += 1
+        if Flash.id > 255:
+            Flash.id = 1
+        return Flash.id
+
+    def __init__(self, serdev="/dev/ttyUSB0"):
+        self.s = serial.Serial(serdev, 57600, timeout=1, xonxoff=0, rtscts=0)
+        self.dev_id = 0xaa
+        # serial port seems to lose the first char?
+        self.s.write("\0")
 
     def make_raw(self, flags, fields, msg_id=None):
         # fields as [ (bit_mask, fmt, value), ... ] in binary order
 
-        mid = msg_id or make_mid()
+        mid = msg_id or Flash.make_id()
         mask = flags
         args = ""
         for bit, fmt, value in fields:
@@ -39,9 +46,49 @@ class Flash(FlashInterface):
 
     def tx_message(self, mid, raw, name, flags):
         print mid, `raw`, name, flags
+        self.s.write(bencode.encode([ self.dev_id, raw ]))
+        self.s.flush()
+
+    def read(self):
+ 
+        msg = ""
+        while True:
+            c = self.s.read(1)
+            if not c:
+                break
+            msg += c
+        print `msg`
+
+        return self.parse(msg)
+
+    def parse(self, msg):
+
+        class G:
+            def __init__(self, msg):
+                self.msg = msg
+                self.i = 0
+            def get(self):
+                i = self.i
+                self.i += 1
+                return self.msg[i]
+
+        g = G(msg)
+        parser = bencode.Parser(g.get)
+
+        node, raw = parser.get()
+        return node, raw
+
+#
+#
 
 fl = Flash()
 
-fl.flash_info_req(123)
+time.sleep(2)
+
+fl.flash_info_req(Flash.make_id())
+#fl.flash_reboot(Flash.make_id())
+#time.sleep(1)
+
+print fl.read()
 
 # FIN
