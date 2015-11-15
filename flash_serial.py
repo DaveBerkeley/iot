@@ -12,7 +12,10 @@ from PyCRC.CRC16 import CRC16
 from jeenet.system.flash import FlashInterface, log
 import jeenet.system.bencode as bencode
 
+import flash_io
 from flash_io import Scheduler, Chain
+
+flash_io.verbose = False
 
 #
 #
@@ -232,15 +235,26 @@ class Handler:
         print "KILL"
         self.dead = True
 
-    def send(self, start_addr, data):
+    #
+    #
+
+    def send(self, start_addr, data, ack=None):
 
         c = CRC16()
         total_crc = c.calculate(data)
         print "crc", "%04X" % total_crc, total_crc
 
         def on_crc(info):
-            print info
-            print total_crc
+            if info.get("crc") == total_crc:
+                if info.get("addr") == start_addr:
+                    if info.get("size") == len(data):
+                        if ack:
+                            ack(info)
+                        else:
+                            print "Done"
+                            self.dead = True
+                        return
+            print "Bad CRC", "%04" % info.get("crc"), "expected %04X" % total_crc
             self.dead = True
 
         def validate():
@@ -264,9 +278,9 @@ class Handler:
             size = info.get("size")
             packet = info.get("packet")
             total = blocks * size
-            print "Got", total, info
 
             if not total:
+                print "No Flash Found"
                 self.dead = True
                 return
 
@@ -297,7 +311,20 @@ data = open(filename).read()
 
 addr = 10000
 
-handler.send(addr, data)
+#typedef struct {
+#    uint8_t     name[8];
+#    uint32_t    addr;
+#    uint16_t    bytes;
+#    uint16_t    crc;
+#}   _FlashSlot;
+
+crc = 0x1234
+slot = struct.pack("<8sLHH", "BOOTDATA", addr, len(data), crc)
+
+def on_written(info):
+    handler.send(0, slot)
+
+handler.send(addr, data, ack=on_written)
 
 while not handler.dead:
     handler.poll()
