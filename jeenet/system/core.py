@@ -18,7 +18,11 @@ import bencode
 
 log_lock = Lock()
 
+verbose = True
+
 def log(*args):
+    if not verbose:
+        return
     log_lock.acquire()
     now = datetime.datetime.now()
     ymd = now.strftime("%Y/%m/%d")

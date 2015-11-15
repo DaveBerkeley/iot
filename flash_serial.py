@@ -11,11 +11,14 @@ from PyCRC.CRC16 import CRC16
 
 from jeenet.system.flash import FlashInterface, log
 import jeenet.system.bencode as bencode
+from jeenet.system.intelhex import convert
 
 import flash_io
 from flash_io import Scheduler, Chain
 
-flash_io.verbose = False
+from jeenet.system import core
+
+core.verbose = False
 
 #
 #
@@ -150,6 +153,12 @@ class Command:
         print "timeout", self
         self.nak("timeout")
 
+    def respond(self, info, cmd):
+        if info.get("cmd") == cmd:
+            self.ack(info)
+        else:
+            self.nak(info)
+
 #from flash_io import Command
 
 #
@@ -163,10 +172,7 @@ class InfoReq(Command):
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
-        if info.get("cmd") == "info":
-            self.ack(info)
-        else:
-            self.nak(info)
+        self.respond(info, "info")
 
 class CrcReq(Command):
 
@@ -176,10 +182,7 @@ class CrcReq(Command):
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
-        if info.get("cmd") == "crc":
-            self.ack(info)
-        else:
-            self.nak(info)
+        self.respond(info, "crc")
 
 class WriteReq(Command):
 
@@ -189,10 +192,7 @@ class WriteReq(Command):
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
-        if info.get("cmd") == "written":
-            self.ack(info)
-        else:
-            self.nak(info)
+        self.respond(info, "written")
 
 #
 #
@@ -307,16 +307,11 @@ time.sleep(2)
 
 filename = "plot.py"
 
+# TODO : read and convert intelhex files
+
 data = open(filename).read()
 
 addr = 10000
-
-#typedef struct {
-#    uint8_t     name[8];
-#    uint32_t    addr;
-#    uint16_t    bytes;
-#    uint16_t    crc;
-#}   _FlashSlot;
 
 crc = 0x1234
 slot = struct.pack("<8sLHH", "BOOTDATA", addr, len(data), crc)
