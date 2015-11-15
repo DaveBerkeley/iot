@@ -6,6 +6,9 @@ import sys
 
 import serial
 
+# https://github.com/cristianav/PyCRC
+from PyCRC.CRC16 import CRC16
+
 from jeenet.system.flash import FlashInterface, log
 import jeenet.system.bencode as bencode
 
@@ -175,6 +178,19 @@ class CrcReq(Command):
         else:
             self.nak(info)
 
+class WriteReq(Command):
+
+    def __init__(self, flash, rid, addr, data, ack=None, nak=None):
+        Command.__init__(self, rid, flash.flash_write, addr, data, False)
+        sched.add(10, self.on_timeout)
+        self.set_ack_nak(ack, nak)
+
+    def reply(self, info):
+        if info.get("cmd") == "written":
+            self.ack(info)
+        else:
+            self.nak(info)
+
 #
 #
 
@@ -198,6 +214,13 @@ class Handler:
         n = nak or self.kill
         CrcReq(self.f, rid, addr, size, ack=ack, nak=n)()
 
+    def write_req(self, ack, addr, data, nak=None):
+        rid = Handler.make_id()
+        n = nak or self.kill
+        WriteReq(self.f, rid, addr, data, ack=ack, nak=n)()
+
+    #
+
     def poll(self):
         info = self.f.read()
         if info:
@@ -209,21 +232,53 @@ class Handler:
         print "KILL"
         self.dead = True
 
-    def send(self):
+    def send(self, start_addr, data):
+
+        c = CRC16()
+        total_crc = c.calculate(data)
+        print "crc", "%04X" % total_crc, total_crc
 
         def on_crc(info):
             print info
+            print total_crc
             self.dead = True
+
+        def validate():
+            self.crc_req(on_crc, start_addr, len(data))
+
+        def make_ack(addr, size, crc, data):
+            def on_written(info):
+                if info.get("crc") == crc:
+                    if info.get("addr") == addr:
+                        if info.get("size") == size:
+                            if requests.done():
+                                validate()
+                            return
+                print "Error writing block, try again"
+                requests.run(self.write_req, on_written, addr, data)
+                #self.dead = True
+            return on_written
 
         def on_info(info):
             blocks = info.get("blocks")
             size = info.get("size")
+            packet = info.get("packet")
             total = blocks * size
             print "Got", total, info
+
             if not total:
                 self.dead = True
-            else:
-                requests.run(self.crc_req, on_crc, 0, 16000)
+                return
+
+            # chop the data up into packet sized blocks
+            for addr in range(0, len(data), packet):
+                d = data[addr:addr+packet]
+                c = CRC16()
+                crc = c.calculate(d)
+
+                write_addr = addr + start_addr
+                ack = make_ack(write_addr, len(d), crc, d)
+                requests.run(self.write_req, ack, write_addr, d)
 
         requests = Chain()
         self.info_req(ack=on_info)
@@ -236,7 +291,13 @@ sched = Scheduler()
 
 time.sleep(2)
 
-handler.send()
+filename = "plot.py"
+
+data = open(filename).read()
+
+addr = 10000
+
+handler.send(addr, data)
 
 while not handler.dead:
     handler.poll()
