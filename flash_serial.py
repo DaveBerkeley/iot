@@ -9,7 +9,7 @@ import serial
 from jeenet.system.flash import FlashInterface, log
 import jeenet.system.bencode as bencode
 
-from flash_io import Scheduler
+from flash_io import Scheduler, Chain
 
 #
 #
@@ -140,9 +140,11 @@ class Command:
         if cmd:
             cmd.reply(info)
 
-    def timeout(self):
+    def on_timeout(self):
         print "timeout", self
         self.nak("timeout")
+
+#from flash_io import Command
 
 #
 #
@@ -151,7 +153,7 @@ class InfoReq(Command):
 
     def __init__(self, flash, rid, ack=None, nak=None):
         Command.__init__(self, rid, flash.flash_info_req)
-        sched.add(10, self.timeout)
+        sched.add(10, self.on_timeout)
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
@@ -164,7 +166,7 @@ class CrcReq(Command):
 
     def __init__(self, flash, rid, addr, size, ack=None, nak=None):
         Command.__init__(self, rid, flash.flash_crc_req, addr, size)
-        sched.add(10, self.timeout)
+        sched.add(10, self.on_timeout)
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
@@ -186,12 +188,12 @@ class Handler:
     def make_id():
         return Flash.make_id()
 
-    def info_req(self, ack=None, nak=None):
+    def info_req(self, ack, nak=None):
         rid = Handler.make_id()
         n = nak or self.kill
         InfoReq(self.f, rid, ack=ack, nak=n)()
 
-    def crc_req(self, addr, size, ack=None, nak=None):
+    def crc_req(self, ack, addr, size, nak=None):
         rid = Handler.make_id()
         n = nak or self.kill
         CrcReq(self.f, rid, addr, size, ack=ack, nak=n)()
@@ -208,6 +210,7 @@ class Handler:
         self.dead = True
 
     def send(self):
+
         def on_crc(info):
             print info
             self.dead = True
@@ -217,10 +220,13 @@ class Handler:
             size = info.get("size")
             total = blocks * size
             print "Got", total, info
-            self.crc_req(0, 100, ack=on_crc)
+            if not total:
+                self.dead = True
+            else:
+                requests.run(self.crc_req, on_crc, 0, 16000)
 
+        requests = Chain()
         self.info_req(ack=on_info)
-
 
 #
 #
