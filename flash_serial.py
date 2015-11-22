@@ -3,6 +3,7 @@
 import struct
 import time
 import sys
+from StringIO import StringIO
 
 import serial
 
@@ -308,11 +309,16 @@ sched = Scheduler()
 
 time.sleep(2)
 
-filename = "plot.py"
+#filename = "plot.py"
+filename = "../arduino/sketchbook/blink/build-uno/blink.hex"
 
-# TODO : read and convert intelhex files
-
-data = open(filename).read()
+if filename.endswith(".hex"):
+    print "Convert from IntelHex"
+    io = StringIO()
+    convert(filename, io, False)
+    data = io.getvalue()
+else:
+    data = open(filename).read()
 
 addr = 10000
 
