@@ -3,6 +3,7 @@
 import struct
 import time
 import sys
+import optparse
 from StringIO import StringIO
 
 import serial
@@ -114,6 +115,9 @@ class Command:
         self.set_ack_nak(nowt, nowt)
         Command.add(rid, self)
 
+    #def __repr__(self):
+    #    return "%s %s" % (self.fn, self.args)
+
     def make_cb(self, fn):
         def xack(info):
             if self.done:
@@ -123,6 +127,7 @@ class Command:
         return xack
 
     def set_ack_nak(self, ack, nak):
+        #print nak
         if ack:
             self.ack = self.make_cb(ack)
         if nak:
@@ -160,8 +165,6 @@ class Command:
         else:
             self.nak(info)
 
-#from flash_io import Command
-
 #
 #
 
@@ -169,7 +172,7 @@ class InfoReq(Command):
 
     def __init__(self, flash, rid, ack=None, nak=None):
         Command.__init__(self, rid, flash.flash_info_req)
-        sched.add(10, self.on_timeout)
+        sched.add(60, self.on_timeout)
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
@@ -179,7 +182,7 @@ class CrcReq(Command):
 
     def __init__(self, flash, rid, addr, size, ack=None, nak=None):
         Command.__init__(self, rid, flash.flash_crc_req, addr, size)
-        sched.add(10, self.on_timeout)
+        sched.add(60, self.on_timeout)
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
@@ -189,7 +192,7 @@ class WriteReq(Command):
 
     def __init__(self, flash, rid, addr, data, ack=None, nak=None):
         Command.__init__(self, rid, flash.flash_write, addr, data, False)
-        sched.add(10, self.on_timeout)
+        sched.add(60, self.on_timeout)
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
@@ -246,17 +249,18 @@ class Handler:
     #
     #
 
-    def send(self, start_addr, data, ack=None):
+    def write(self, start_addr, data, ack=None):
 
         c = CRC16()
         total_crc = c.calculate(data)
         print "writing", len(data), "bytes at", start_addr, "crc", "%04X" % total_crc
 
         def on_crc(info):
-            print "%04X" % info.get("crc")
+            #print "%04X" % info.get("crc")
             if info.get("crc") == total_crc:
                 if info.get("addr") == start_addr:
                     if info.get("size") == len(data):
+                        print "Verified %04X" % total_crc
                         self.chain(ack)
                         return
             print "Bad CRC", "%04" % info.get("crc"), "expected %04X" % total_crc
@@ -274,7 +278,9 @@ class Handler:
                                 validate()
                             return
                 print "Error writing block, try again"
-                requests.run(self.write_req, on_written, addr, data)
+                def dave(*args):
+                    raise Exception(*args)
+                requests.run(self.write_req, on_written, addr, data, nak=dave)
             return on_written
 
         def on_info(info):
@@ -304,35 +310,66 @@ class Handler:
 #
 #
 
-handler = Handler()
-sched = Scheduler()
+if __name__ == "__main__":
+    p = optparse.OptionParser()
+    p.add_option("-d", "--dev", dest="dev")
+    p.add_option("-a", "--addr", dest="addr", type="int")
+    p.add_option("-s", "--slot", dest="slot", type="int")
+    p.add_option("-f", "--fname", dest="fname")
+    p.add_option("-n", "--name", dest="name")
+    p.add_option("-D", "--dir", dest="dir", action="store_true")
+    p.add_option("-V", "--verify", dest="verify", action="store_true")
+    p.add_option("-R", "--read", dest="read", action="store_true")
+    p.add_option("-W", "--write", dest="write", action="store_true")
 
-time.sleep(2)
+    opts, args = p.parse_args()
 
-#filename = "plot.py"
-filename = "../arduino/sketchbook/blink/build-uno/blink.hex"
+    handler = Handler()
+    sched = Scheduler()
 
-if filename.endswith(".hex"):
-    print "Convert from IntelHex"
-    io = StringIO()
-    convert(filename, io, False)
-    data = io.getvalue()
-else:
-    data = open(filename).read()
+    time.sleep(2)
 
-addr = 10000
+    #filename = "plot.py"
+    #filename = "../arduino/sketchbook/blink/build-uno/blink.hex"
+    #filename = "../arduino/sketchbook/radio_relay/build-uno/radio_relay.hex"
+    filename = opts.fname
 
-c = CRC16()
-crc = c.calculate(data)
-slot = struct.pack("<8sLHH", "BOOTDATA", addr, len(data), crc)
+    if filename.endswith(".hex"):
+        print "Convert from IntelHex"
+        io = StringIO()
+        convert(filename, io, False)
+        data = io.getvalue()
+    else:
+        data = open(filename).read()
 
-def on_written(*args):
-    handler.send(0, slot)
+    addr = opts.addr
+    slotno = opts.slot
 
-handler.send(addr, data, ack=on_written)
+    c = CRC16()
+    crc = c.calculate(data)
 
-while not handler.dead:
-    handler.poll()
-    sched.poll()
+    name = "slot_%03d" % slotno
+    if slotno == 0:
+        name = "BOOTDATA"
+    if opts.name:
+        name = opts.name
+
+    if opts.write:
+        assert addr, "Must set address"
+
+        if not opts.slot is None:
+            slot = struct.pack("<8sLHH", name, addr, len(data), crc)
+
+            def on_written(*args):
+                print "Writing slot", slotno, name
+                handler.write(0, slot)
+        else:
+            on_written = None
+
+        handler.write(addr, data, ack=on_written)
+
+    while not handler.dead:
+        handler.poll()
+        sched.poll()
 
 # FIN
