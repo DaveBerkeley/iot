@@ -8,6 +8,7 @@ import optparse
 import Queue
 import base64
 import copy
+from StringIO import StringIO
 
 # https://github.com/joshmarshall/jsonrpclib
 import jsonrpclib
@@ -15,6 +16,7 @@ import jsonrpclib
 # https://github.com/cristianav/PyCRC
 from PyCRC.CRC16 import CRC16
 
+from jeenet.system.intelhex import convert
 from jeenet.system.core import DeviceProxy
 import broker
 
@@ -554,7 +556,7 @@ class Checker:
 
         r.begin(start_addr, fname, slot)
 
-        raw = open(fname).read()
+        raw = self.fopen(fname)
         c = CRC16()
         crc = c.calculate(raw)
 
@@ -635,7 +637,7 @@ class Checker:
     #   Verify File
 
     def verify_file(self, r, fname, slot):
-        raw = open(fname).read()
+        raw = self.fopen(fname)
         c = CRC16()
         crc = c.calculate(raw)
         size = len(raw)
@@ -664,6 +666,19 @@ class Checker:
             self.rec_req(on_slot, slot)
 
         self.info_req(on_info)
+
+    #   Open binary or intel hex file
+    #
+
+    def fopen(self, filename):
+        if filename.endswith(".hex"):
+            print "Convert from IntelHex"
+            io = StringIO()
+            convert(filename, io, False)
+            data = io.getvalue()
+        else:
+            data = open(filename).read()
+        return data
 
     #
     #   Read File
