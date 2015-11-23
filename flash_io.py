@@ -801,7 +801,7 @@ class WriteRenderer(Renderer):
 
     def on_verify(self, info, okay):
         if okay:
-            print "Verified okay"
+            print "Verified okay, crc %04X" % info.get("crc")
         else:
             print "Verify failed, crc was %04X" % info.get("crc")
 
