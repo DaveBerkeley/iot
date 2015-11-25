@@ -97,11 +97,10 @@ class MqttReader:
             raise Exception(("Unknown ident", ident, info))
 
     def poll(self, handler=None):
-        if handler is None:
-            handler = self.mqtt_handler
         msg = self.pop()
         if not msg is None:
-            handler(msg)
+            fn = handler or self.mqtt_handler
+            fn(msg)
 
 #
 #   Not really a scheduler so much as an event generator.
@@ -142,6 +141,7 @@ class Command:
         self.fn = fn
         self.args = args
         self.done = False
+        self.t = None
         def nowt(*args):
             print "callback not set", args
         self.set_ack_nak(nowt, nowt)
@@ -163,7 +163,11 @@ class Command:
 
     def __call__(self):
         # TODO : push to tx queue, defer running
+        # TODO : timeout, retry
         self.fn(self.rid, *self.args)
+        if self.t:
+            sched.add(self.t, self.on_timeout)
+            self.t = None
 
     @staticmethod
     def add(rid, cmd):
@@ -186,6 +190,9 @@ class Command:
         print "timeout", self
         self.nak("timeout")
 
+    def set_timeout(self, t):
+        self.t = t
+
     def respond(self, info, cmd):
         if info.get("cmd") == cmd:
             self.ack(info)
@@ -199,8 +206,6 @@ class InfoReq(Command):
 
     def __init__(self, flash, rid, ack=None, nak=None):
         Command.__init__(self, rid, flash.flash_info_req)
-        # TODO : schedule timeout when cmd is queued!
-        sched.add(60, self.on_timeout)
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
@@ -210,8 +215,6 @@ class SlotReq(Command):
 
     def __init__(self, flash, rid, slot, ack=None, nak=None):
         Command.__init__(self, rid, flash.flash_record_req, slot)
-        # TODO : schedule timeout when cmd is queued!
-        sched.add(60, self.on_timeout)
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
@@ -235,15 +238,25 @@ class Handler:
             Handler.id = 1
         return Handler.id
 
-    def info_req(self, ack=None, nak=None):
+    #
+    #
+
+    def command(self, klass, *args, **kwargs):
         rid = Handler.make_id()
-        n = nak or self.kill
-        InfoReq(self.dev, rid, ack=ack, nak=n)()
+        n = kwargs["nak"] or self.kill
+        ack = kwargs["ack"]
+        c = klass(self.dev, rid, *args, ack=ack, nak=n)
+        c.set_timeout(60)
+        c()
+
+    def info_req(self, ack=None, nak=None):
+        self.command(InfoReq, ack=ack, nak=nak)
 
     def slot_req(self, slot, ack=None, nak=None):
-        rid = Handler.make_id()
-        n = nak or self.kill
-        SlotReq(self.dev, rid, slot, ack=ack, nak=n)()
+        self.command(SlotReq, slot, ack=ack, nak=nak)
+
+    #
+    #
 
     def poll(self):
         info = self.f.read()
@@ -267,15 +280,21 @@ class Handler:
     #
 
     def test(self):
+
+        slots = { "s" : [] }
+
         def on_slot(info):
             print info
-            #self.dead = True
+            slots["s"].append(info)
+            if len(slots["s"]) == 8:
+                self.dead = True
+
         def on_ack(info):
             print info
+            for i in range(8):
+                self.slot_req(i, ack=on_slot)
 
         self.info_req(ack=on_ack)
-        for i in range(8):
-            self.slot_req(0, ack=on_slot)
 
 #
 #
