@@ -294,7 +294,12 @@ class Handler:
         nak = kwargs.get("nak") or self.kill
         ack = kwargs["ack"]
         c = klass(self.dev, rid, *args, **kwargs)
-        c.set_timeout(120, timeout=20, retries=5, exp=False)
+        #if dev.is_sleepy():
+        #    t = 20
+        #else:
+        #    t = 5
+        t = 20
+        c.set_timeout(120, timeout=t, retries=5, exp=False)
         assert nak
         assert ack
         c.set_ack_nak(ack, nak)
