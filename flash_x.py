@@ -162,6 +162,7 @@ class Command:
             self.nak = self.make_cb(nak)
 
     def __call__(self):
+        # TODO : push to tx queue, defer running
         self.fn(self.rid, *self.args)
 
     @staticmethod
@@ -198,11 +199,23 @@ class InfoReq(Command):
 
     def __init__(self, flash, rid, ack=None, nak=None):
         Command.__init__(self, rid, flash.flash_info_req)
+        # TODO : schedule timeout when cmd is queued!
         sched.add(60, self.on_timeout)
         self.set_ack_nak(ack, nak)
 
     def reply(self, info):
         self.respond(info, "info")
+
+class SlotReq(Command):
+
+    def __init__(self, flash, rid, slot, ack=None, nak=None):
+        Command.__init__(self, rid, flash.flash_record_req, slot)
+        # TODO : schedule timeout when cmd is queued!
+        sched.add(60, self.on_timeout)
+        self.set_ack_nak(ack, nak)
+
+    def reply(self, info):
+        self.respond(info, "record")
 
 #
 #
@@ -222,10 +235,15 @@ class Handler:
             Handler.id = 1
         return Handler.id
 
-    def info_req(self, ack, nak=None):
+    def info_req(self, ack=None, nak=None):
         rid = Handler.make_id()
         n = nak or self.kill
         InfoReq(self.dev, rid, ack=ack, nak=n)()
+
+    def slot_req(self, slot, ack=None, nak=None):
+        rid = Handler.make_id()
+        n = nak or self.kill
+        SlotReq(self.dev, rid, slot, ack=ack, nak=n)()
 
     def poll(self):
         info = self.f.read()
@@ -245,11 +263,19 @@ class Handler:
             print "Done"
             self.dead = True
 
+    #
+    #
+
     def test(self):
+        def on_slot(info):
+            print info
+            #self.dead = True
         def on_ack(info):
             print info
-            self.dead = True
-        self.info_req(on_ack)
+
+        self.info_req(ack=on_ack)
+        for i in range(8):
+            self.slot_req(0, ack=on_slot)
 
 #
 #
