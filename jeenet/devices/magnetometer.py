@@ -1,13 +1,16 @@
 
 from system.jeenet import JeeNodeDev, message_info
+from system.flash import FlashInterface
 
 #
 #
 
-class MagnetometerDev(JeeNodeDev):
+class MagnetometerDev(JeeNodeDev,FlashInterface):
 
     def __init__(self, *args, **kwargs):
         JeeNodeDev.__init__(self, *args, **kwargs)
+        FlashInterface.__init__(self, *args, **kwargs)
+        self.is_sleepy = True 
 
     def to_info(self, data):
         rx_fields = [ 
@@ -41,5 +44,13 @@ class MagnetometerDev(JeeNodeDev):
 
     def get_poll_period(self):
         return None
+
+    def set_gain(self, gain):
+        assert 0 <= gain <= 7
+        fields = [ (1<<6, "<B", gain), ]
+        msg_id, raw = self.make_raw(self.ack_flag, fields)
+        self.tx_message(msg_id, raw, "set_gain", True)
+
+    api = JeeNodeDev.api + [ "set_gain" ]
 
 # FIN
