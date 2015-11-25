@@ -41,9 +41,26 @@ def log(*args):
 
 class TxQueue:
 
+    def __init__(self):
+        self.q = []
+        self.free = 2
+
     def on_gateway(self, info):
-        free, bsize = info
-        print free, bsize
+        self.free, self.bsize = info
+        #log(self.free, self.bsize)
+        self.flush()
+
+    def add(self, cmd):
+        self.q.append(cmd)
+        self.flush()
+
+    def flush(self):
+        while self.q and (self.free > 1):
+            cmd = self.q.pop()
+            cmd()
+            self.free -= 1
+
+txq = TxQueue()
 
 #
 #   Decouple MQTT messages from the reader thread
@@ -141,11 +158,17 @@ class Command:
         self.fn = fn
         self.args = args
         self.done = False
-        self.t = None
+        self.die_timeout = None
+        self.timeout = None
+        self.retry = None
+        self.exp = None
         def nowt(*args):
-            print "callback not set", args
+            log("callback not set", args)
         self.set_ack_nak(nowt, nowt)
         Command.add(rid, self)
+
+    def __repr__(self):
+        return "%s(rid=%d)" % (self.__class__.__name__, self.rid)
 
     def make_cb(self, fn):
         def xack(info):
@@ -161,13 +184,15 @@ class Command:
         if nak:
             self.nak = self.make_cb(nak)
 
-    def __call__(self):
-        # TODO : push to tx queue, defer running
-        # TODO : timeout, retry
-        self.fn(self.rid, *self.args)
-        if self.t:
-            sched.add(self.t, self.on_timeout)
-            self.t = None
+    def start(self):
+        # push to tx queue, defer running
+        def fn():
+            self.fn(self.rid, *self.args)
+            if self.die_timeout:
+                sched.add(self.die_timeout, self.on_timeout)
+                self.die_timeout = None
+                sched.add(self.timeout, self.on_retry)
+        txq.add(fn)
 
     @staticmethod
     def add(rid, cmd):
@@ -187,11 +212,28 @@ class Command:
             cmd.reply(info)
 
     def on_timeout(self):
-        print "timeout", self
+        if self.done:
+            return
+        log("timeout", self)
         self.nak("timeout")
 
-    def set_timeout(self, t):
-        self.t = t
+    def on_retry(self):
+        if self.done:
+            return
+        log("on_retry", self.retry, self)
+        self.retry -= 1
+        if self.retry == 0:
+            self.nak("no more retries")
+        else:
+            if self.exp:
+                self.timeout *= 2
+            self()
+
+    def set_timeout(self, die, retries=1, timeout=1, exp=False):
+        self.die_timeout = die
+        self.retry = retries
+        self.timeout = timeout
+        self.exp = exp
 
     def respond(self, info, cmd):
         if info.get("cmd") == cmd:
@@ -243,11 +285,11 @@ class Handler:
 
     def command(self, klass, *args, **kwargs):
         rid = Handler.make_id()
-        n = kwargs["nak"] or self.kill
+        nak = kwargs["nak"] or self.kill
         ack = kwargs["ack"]
-        c = klass(self.dev, rid, *args, ack=ack, nak=n)
-        c.set_timeout(60)
-        c()
+        c = klass(self.dev, rid, *args, ack=ack, nak=nak)
+        c.set_timeout(120, timeout=20, retries=5, exp=False)
+        c.start()
 
     def info_req(self, ack=None, nak=None):
         self.command(InfoReq, ack=ack, nak=nak)
@@ -266,14 +308,14 @@ class Handler:
                 Command.on_reply(flash.get("rid"), flash)
 
     def kill(self, *args):
-        print "KILL"
+        log("KILL")
         self.dead = True
 
     def chain(self, ack):
         if ack:
             ack()
         else:
-            print "Done"
+            log("Done")
             self.dead = True
 
     #
@@ -284,17 +326,17 @@ class Handler:
         slots = { "s" : [] }
 
         def on_slot(info):
-            print info
+            log("on_slot", info)
             slots["s"].append(info)
             if len(slots["s"]) == 8:
-                self.dead = True
+                self.chain(None)
 
-        def on_ack(info):
-            print info
-            for i in range(8):
-                self.slot_req(i, ack=on_slot)
+        def on_info(info):
+            log("on_info", info)
 
-        self.info_req(ack=on_ack)
+        self.info_req(ack=on_info)
+        for i in range(8):
+            self.slot_req(i, ack=on_slot)
 
 #
 #
