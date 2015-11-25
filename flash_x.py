@@ -47,7 +47,7 @@ class TxQueue:
 
     def on_gateway(self, info):
         self.free, self.bsize = info
-        #log(self.free, self.bsize)
+        log("gw", self.free, self.bsize)
         self.flush()
 
     def add(self, cmd):
@@ -153,7 +153,7 @@ class Command:
 
     lut = {}
 
-    def __init__(self, rid, fn, *args):
+    def __init__(self, rid, fn, *args, **kwargs):
         self.rid = rid
         self.fn = fn
         self.args = args
@@ -191,7 +191,7 @@ class Command:
             if self.die_timeout:
                 sched.add(self.die_timeout, self.on_timeout)
                 self.die_timeout = None
-                sched.add(self.timeout, self.on_retry)
+            sched.add(self.timeout, self.on_retry)
         txq.add(fn)
 
     @staticmethod
@@ -227,7 +227,7 @@ class Command:
         else:
             if self.exp:
                 self.timeout *= 2
-            self()
+            self.start()
 
     def set_timeout(self, die, retries=1, timeout=1, exp=False):
         self.die_timeout = die
@@ -246,21 +246,27 @@ class Command:
 
 class InfoReq(Command):
 
-    def __init__(self, flash, rid, ack=None, nak=None):
-        Command.__init__(self, rid, flash.flash_info_req)
-        self.set_ack_nak(ack, nak)
+    def __init__(self, flash, rid, *args, **kwargs):
+        Command.__init__(self, rid, flash.flash_info_req, *args, **kwargs)
 
     def reply(self, info):
         self.respond(info, "info")
 
 class SlotReq(Command):
 
-    def __init__(self, flash, rid, slot, ack=None, nak=None):
-        Command.__init__(self, rid, flash.flash_record_req, slot)
-        self.set_ack_nak(ack, nak)
+    def __init__(self, flash, rid, slot, *args, **kwargs):
+        Command.__init__(self, rid, flash.flash_record_req, slot, *args, **kwargs)
 
     def reply(self, info):
         self.respond(info, "record")
+
+class CrcReq(Command):
+
+    def __init__(self, flash, rid, addr, size, *args, **kwargs):
+        Command.__init__(self, rid, flash.flash_crc_req, addr, size, *args, **kwargs)
+
+    def reply(self, info):
+        self.respond(info, "crc")
 
 #
 #
@@ -285,10 +291,13 @@ class Handler:
 
     def command(self, klass, *args, **kwargs):
         rid = Handler.make_id()
-        nak = kwargs["nak"] or self.kill
+        nak = kwargs.get("nak") or self.kill
         ack = kwargs["ack"]
-        c = klass(self.dev, rid, *args, ack=ack, nak=nak)
+        c = klass(self.dev, rid, *args, **kwargs)
         c.set_timeout(120, timeout=20, retries=5, exp=False)
+        assert nak
+        assert ack
+        c.set_ack_nak(ack, nak)
         c.start()
 
     def info_req(self, ack=None, nak=None):
@@ -296,6 +305,9 @@ class Handler:
 
     def slot_req(self, slot, ack=None, nak=None):
         self.command(SlotReq, slot, ack=ack, nak=nak)
+
+    def crc_req(self, addr, size, ack=None, nak=None):
+        self.command(CrcReq, addr, size, ack=ack, nak=nak)
 
     #
     #
@@ -308,7 +320,7 @@ class Handler:
                 Command.on_reply(flash.get("rid"), flash)
 
     def kill(self, *args):
-        log("KILL")
+        log("KILL", args)
         self.dead = True
 
     def chain(self, ack):
@@ -323,16 +335,56 @@ class Handler:
 
     def test(self):
 
-        slots = { "s" : [] }
+        slots = { 
+            "s" : {},
+            "slot" : 0,
+        }
+
+        def render():
+            while True:
+                #print slots["s"].keys()
+                info = slots["s"].get(slots.get("slot"))
+                if not info:
+                    break
+                slot = info.get("slot")
+                addr = info.get("addr")
+                size = info.get("size")
+                name = info.get("name")
+                crc = info.get("crc")
+                scrc = info.get("scrc")
+                if crc == scrc:
+                    end = "Ok"
+                else:
+                    end = "Error, crc=%04X" % crc
+                print "%02d %8s %7d %7d %04X %s" % (slot, name, addr, size, scrc, end)
+                slots["slot"] += 1
+
+        def make_on_crc(slot, name, crc):
+            def on_crc(info):
+                info["slot"] = slot
+                info["name"] = name
+                info["scrc"] = crc
+                log("on_crc", slot, info)
+                slots["s"][slot] = info
+                render()
+                if len(slots["s"]) == 8:
+                    self.chain(None)
+            return on_crc
 
         def on_slot(info):
             log("on_slot", info)
-            slots["s"].append(info)
-            if len(slots["s"]) == 8:
-                self.chain(None)
+            addr = info.get("addr")
+            size = info.get("size")
+            slot = info.get("slot")
+            name = info.get("name")
+            crc = info.get("crc")
+            self.crc_req(addr, size, ack=make_on_crc(slot, name, crc))
 
         def on_info(info):
             log("on_info", info)
+            if not info.get("blocks"):
+                print "No Flash Found"
+                sef.kill()
 
         self.info_req(ack=on_info)
         for i in range(8):
@@ -351,6 +403,7 @@ if __name__ == "__main__":
     p.add_option("-z", "--size", dest="size", type="int")
     p.add_option("-f", "--fname", dest="fname")
     p.add_option("-n", "--name", dest="name")
+    p.add_option("-v", "--verbose", dest="verbose", action="store_true")
     p.add_option("-D", "--dir", dest="dir", action="store_true")
     p.add_option("-V", "--verify", dest="verify", action="store_true")
     p.add_option("-R", "--read", dest="read", action="store_true")
@@ -363,6 +416,7 @@ if __name__ == "__main__":
     mqttserver = opts.mqtt
     slot = opts.slot
     fname = opts.fname
+    verbose = opts.verbose
 
     server = jsonrpclib.Server('http://%s:8888' % jsonserver)
 
