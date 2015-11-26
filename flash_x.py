@@ -348,25 +348,30 @@ class Handler:
     #
     #
 
-    def test(self):
+    def render_info(self, info):
+        size = info.get("blocks") * info.get("size")
+        bsize = info.get("packet")
+        print "found flash size %d, buffsize %d" % (size, bsize)
+
+    def render_slot(self, slot_info, info):
+        slot = slot_info.get("slot")
+        addr = slot_info.get("addr")
+        size = slot_info.get("size")
+        name = slot_info.get("name")
+        crc = info.get("crc")
+        scrc = slot_info.get("crc")
+        if crc == scrc:
+            end = "Ok"
+        else:
+            end = "Error, crc=%04X" % crc
+        print "%02d %8s %7d %7d %04X %s" % (slot, name, addr, size, scrc, end)
+
+    def test(self, ack=None):
 
         slots = { 
             "s" : {},
             "slot" : None,
         }
-
-        def render(info):
-            slot = info.get("slot")
-            addr = info.get("addr")
-            size = info.get("size")
-            name = info.get("name")
-            crc = info.get("crc")
-            scrc = info.get("scrc")
-            if crc == scrc:
-                end = "Ok"
-            else:
-                end = "Error, crc=%04X" % crc
-            print "%02d %8s %7d %7d %04X %s" % (slot, name, addr, size, scrc, end)
 
         def show():
             while True:
@@ -374,19 +379,19 @@ class Handler:
                 info = slots["s"].get(s)
                 if not info:
                     return
-                render(info)
+                sinfo = info.get("info")
+                self.render_slot(sinfo, info)
                 slots["slot"] += 1
 
-        def make_on_crc(slot, name, crc):
+        def make_on_crc(slot_info):
             def on_crc(info):
-                info["slot"] = slot
-                info["name"] = name
-                info["scrc"] = crc
-                log("on_crc", slot, info)
+                info["info"] = slot_info
+                log("on_crc", slot_info)
+                slot = slot_info.get("slot")
                 slots["s"][slot] = info
                 show()
                 if len(slots["s"]) == 8:
-                    self.chain(None)
+                    self.chain(ack)
             return on_crc
 
         def on_slot(info):
@@ -396,7 +401,7 @@ class Handler:
             slot = info.get("slot")
             name = info.get("name")
             crc = info.get("crc")
-            self.crc_req(addr, size, ack=make_on_crc(slot, name, crc))
+            self.crc_req(addr, size, ack=make_on_crc(info))
 
         def on_no_info(info):
             print "No Flash Found"
@@ -406,12 +411,11 @@ class Handler:
             log("on_info", info)
             if not info.get("blocks"):
                 return on_no_info()
-            size = info.get("blocks") * info.get("size")
-            bsize = info.get("packet")
-            print "found flash size", size, "buffsize", bsize
+            self.render_info(info)
             slots["slot"] = 0
 
         self.info_req(ack=on_info, nak=on_no_info)
+        # make the slot requests anyway
         for i in range(8):
             self.slot_req(i, ack=on_slot)
 
