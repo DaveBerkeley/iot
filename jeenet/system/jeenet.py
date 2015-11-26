@@ -70,6 +70,7 @@ class JeeNet(Reader):
         self.baud = kwargs.get("baud", 57600)
         self.verbose = kwargs.get("verbose", False)
         self.s = None
+        self.is_sleepy = False
         Reader.__init__(self, *args, **kwargs)
         self.parser = bencode.Parser(self.read)
 
@@ -245,11 +246,10 @@ class JeeNodeDev(Device):
             self.add_message(msg)
         self.tx(raw)
 
-    def get_poll_period(self):
-        # default poll period
-        return 60.0
+    def sleepy(self):
+        return self.is_sleepy
 
-    api = Device.api + [ "hello" ]
+    api = Device.api + [ "hello", "sleepy", ]
 
 #
 #   Gateway
@@ -258,6 +258,7 @@ class Gateway(JeeNodeDev):
 
     def __init__(self, *args, **kwargs):
         JeeNodeDev.__init__(self, *args, **kwargs)
+        self.api += JeeNodeDev.api
 
     def to_info(self, data):
         fields = [ 
@@ -279,7 +280,15 @@ class Gateway(JeeNodeDev):
         self.s = None
  
     def get_poll_period(self):
-        return 10.0
+        return 10
+
+    def get_devices(self):
+        devs = []
+        for dev in devices.values():
+            devs.append(dev.node)
+        return devs
+
+    api = [ "get_devices" ]
 
 #
 #

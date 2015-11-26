@@ -43,7 +43,7 @@ class MagnetometerDev(JeeNodeDev,FlashInterface):
         return info
 
     def get_poll_period(self):
-        return None
+        return 10
 
     def set_gain(self, gain):
         assert 0 <= gain <= 7

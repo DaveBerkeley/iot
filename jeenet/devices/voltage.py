@@ -8,6 +8,7 @@ class VoltageDev(JeeNodeDev):
 
     def __init__(self, *args, **kwargs):
         JeeNodeDev.__init__(self, *args, **kwargs)
+        self.is_sleepy = True 
 
     def to_info(self, data):
         rx_fields = [ 
@@ -29,6 +30,6 @@ class VoltageDev(JeeNodeDev):
         return info
 
     def get_poll_period(self):
-        return None
+        return 60
 
 # FIN

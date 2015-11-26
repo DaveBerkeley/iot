@@ -8,6 +8,7 @@ class HumidityDev(JeeNodeDev):
 
     def __init__(self, *args, **kwargs):
         JeeNodeDev.__init__(self, *args, **kwargs)
+        self.is_sleepy = True 
 
     def to_info(self, data):
         rx_fields = [ 
@@ -36,7 +37,7 @@ class HumidityDev(JeeNodeDev):
         self.tx_message(msg_id, raw, "set_mode", True)
 
     def get_poll_period(self):
-        return None
+        return 20
 
     api = JeeNodeDev.api + [ "set_mode" ]
 
