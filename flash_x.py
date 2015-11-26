@@ -588,8 +588,6 @@ class Handler:
         if not fname:
             self.kill("no filename specified")
 
-        print "Write", fname, "at address", start_addr
-
         queue = []
         packets = {}
         s = {}
@@ -598,6 +596,8 @@ class Handler:
 
         c = CRC16()
         crc = c.calculate(data)
+
+        print "Write", fname, "at address", start_addr, "size", len(data), "crc %04X" % crc
 
         def on_slot(info):
             log(info)
@@ -670,6 +670,40 @@ class Handler:
         self.info_req(ack=on_info, nak=self.on_no_info)
         self.crc_req(start_addr, len(data), ack=on_crc)
 
+    #
+    #
+
+    def verify_block(self, fname, addr, size, ack=None):
+        print "%s addr=%d size=%d" % (fname, addr, size)
+
+        data = open(fname).read()
+        c = CRC16()
+        crc = c.calculate(data)
+
+        def on_crc(info):
+            if crc == info.get("crc"):
+                print "Verifies okay, crc=%04X" % crc
+                self.chain(ack)
+            else:
+                self.kill("Bad CRC")
+
+        self.crc_req(addr, size, ack=on_crc)
+
+    #
+    #
+
+    def verify(self, fname, slot, ack=None):
+
+        if not fname:
+            self.kill("filename not specified")
+        if slot is None:
+            self.kill("slot not specified")
+
+        def on_slot(info):
+            self.verify_block(fname, info.get("addr"), info.get("size"), ack)
+
+        self.slot_req(slot, ack=on_slot)
+
 #
 #
 
@@ -733,6 +767,8 @@ if __name__ == "__main__":
             handler.read_block(opts.addr, opts.size, opts.fname) 
     elif opts.write:
         handler.write(opts.addr, opts.fname, opts.slot, opts.name)
+    elif opts.verify:
+        handler.verify(opts.fname, opts.slot)
 
     while not handler.dead:
         try:
