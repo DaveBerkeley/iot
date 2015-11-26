@@ -187,11 +187,14 @@ class Command:
     def start(self):
         # push to tx queue, defer running
         def fn():
-            self.fn(self.rid, *self.args)
-            if self.die_timeout:
-                sched.add(self.die_timeout, self.on_timeout)
-                self.die_timeout = None
-            sched.add(self.timeout, self.on_retry)
+            try:
+                self.fn(self.rid, *self.args)
+                if self.die_timeout:
+                    sched.add(self.die_timeout, self.on_timeout)
+                    self.die_timeout = None
+                sched.add(self.timeout, self.on_retry)
+            except Exception, ex:
+                self.nak(ex)
         txq.add(fn)
 
     @staticmethod
@@ -229,11 +232,11 @@ class Command:
                 self.timeout *= 2
             self.start()
 
-    def set_timeout(self, die, retries=1, timeout=1, exp=False):
-        self.die_timeout = die
-        self.retry = retries
-        self.timeout = timeout
-        self.exp = exp
+    def set_timeout(self, policy):
+        self.die_timeout = policy.die
+        self.retry = policy.retries
+        self.timeout = policy.timeout
+        self.exp = policy.exp
 
     def respond(self, info, cmd):
         if info.get("cmd") == cmd:
@@ -271,11 +274,23 @@ class CrcReq(Command):
 #
 #
 
+class RetryPolicy:
+
+    def __init__(self, dev):
+        self.die = 120
+        self.timeout = dev.get_poll_period()
+        self.retries = 5
+        self.exp = False
+
+#
+#
+
 class Handler:
 
     def __init__(self, dev):
         self.dev = dev
         self.dead = False
+        self.policy = RetryPolicy(dev)
 
     id = 0
 
@@ -294,12 +309,7 @@ class Handler:
         nak = kwargs.get("nak") or self.kill
         ack = kwargs["ack"]
         c = klass(self.dev, rid, *args, **kwargs)
-        #if dev.is_sleepy():
-        #    t = 20
-        #else:
-        #    t = 5
-        t = 20
-        c.set_timeout(120, timeout=t, retries=5, exp=False)
+        c.set_timeout(self.policy)
         assert nak
         assert ack
         c.set_ack_nak(ack, nak)
@@ -342,26 +352,29 @@ class Handler:
 
         slots = { 
             "s" : {},
-            "slot" : 0,
+            "slot" : None,
         }
 
-        def render():
+        def render(info):
+            slot = info.get("slot")
+            addr = info.get("addr")
+            size = info.get("size")
+            name = info.get("name")
+            crc = info.get("crc")
+            scrc = info.get("scrc")
+            if crc == scrc:
+                end = "Ok"
+            else:
+                end = "Error, crc=%04X" % crc
+            print "%02d %8s %7d %7d %04X %s" % (slot, name, addr, size, scrc, end)
+
+        def show():
             while True:
-                #print slots["s"].keys()
-                info = slots["s"].get(slots.get("slot"))
+                s = slots.get("slot")
+                info = slots["s"].get(s)
                 if not info:
-                    break
-                slot = info.get("slot")
-                addr = info.get("addr")
-                size = info.get("size")
-                name = info.get("name")
-                crc = info.get("crc")
-                scrc = info.get("scrc")
-                if crc == scrc:
-                    end = "Ok"
-                else:
-                    end = "Error, crc=%04X" % crc
-                print "%02d %8s %7d %7d %04X %s" % (slot, name, addr, size, scrc, end)
+                    return
+                render(info)
                 slots["slot"] += 1
 
         def make_on_crc(slot, name, crc):
@@ -371,7 +384,7 @@ class Handler:
                 info["scrc"] = crc
                 log("on_crc", slot, info)
                 slots["s"][slot] = info
-                render()
+                show()
                 if len(slots["s"]) == 8:
                     self.chain(None)
             return on_crc
@@ -385,13 +398,20 @@ class Handler:
             crc = info.get("crc")
             self.crc_req(addr, size, ack=make_on_crc(slot, name, crc))
 
+        def on_no_info(info):
+            print "No Flash Found"
+            self.kill()
+
         def on_info(info):
             log("on_info", info)
             if not info.get("blocks"):
-                print "No Flash Found"
-                sef.kill()
+                return on_no_info()
+            size = info.get("blocks") * info.get("size")
+            bsize = info.get("packet")
+            print "found flash size", size, "buffsize", bsize
+            slots["slot"] = 0
 
-        self.info_req(ack=on_info)
+        self.info_req(ack=on_info, nak=on_no_info)
         for i in range(8):
             self.slot_req(i, ack=on_slot)
 
@@ -413,6 +433,7 @@ if __name__ == "__main__":
     p.add_option("-V", "--verify", dest="verify", action="store_true")
     p.add_option("-R", "--read", dest="read", action="store_true")
     p.add_option("-W", "--write", dest="write", action="store_true")
+    p.add_option("-A", "--all", dest="all", action="store_true")
 
     opts, args = p.parse_args()
 
@@ -424,6 +445,19 @@ if __name__ == "__main__":
     verbose = opts.verbose
 
     server = jsonrpclib.Server('http://%s:8888' % jsonserver)
+
+    if opts.all:
+        dev = DeviceProxy(server, "gateway")
+        names = dev.get_devices()
+        names.sort()
+        now = time.time()
+        for name in names:
+            d = DeviceProxy(server, name)
+            t = now - d.get_last_message()
+            sleepy = d.sleepy()
+            dt = d.get_poll_period()
+            print "%-20s sleepy=%-5s period=%-3d last=%.1f" % (name, sleepy, dt, t)
+        sys.exit()
 
     dev = DeviceProxy(server, devname)
 
