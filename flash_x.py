@@ -674,11 +674,14 @@ class Handler:
     #
 
     def verify_block(self, fname, addr, size, ack=None):
-        print "%s addr=%d size=%d" % (fname, addr, size)
-
         data = open(fname).read()
         c = CRC16()
         crc = c.calculate(data)
+
+        if size is None:
+            size = len(data)
+
+        print "%s addr=%d size=%d" % (fname, addr, size)
 
         def on_crc(info):
             if crc == info.get("crc"):
@@ -768,7 +771,10 @@ if __name__ == "__main__":
     elif opts.write:
         handler.write(opts.addr, opts.fname, opts.slot, opts.name)
     elif opts.verify:
-        handler.verify(opts.fname, opts.slot)
+        if not opts.slot is None:
+            handler.verify(opts.fname, opts.slot)
+        else:
+            handler.verify_block(opts.fname, opts.addr, opts.size)
 
     while not handler.dead:
         try:
