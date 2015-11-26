@@ -280,15 +280,32 @@ class ReadReq(Command):
     def reply(self, info):
         self.respond(info, "read")
 
+class WriteReq(Command):
+
+    def __init__(self, flash, rid, addr, b64, *args, **kwargs):
+        Command.__init__(self, rid, flash.flash_write, addr, b64, True, *args, **kwargs)
+
+    def reply(self, info):
+        self.respond(info, "written")
+
+class SlotWrite(Command):
+
+    def __init__(self, flash, rid, slot, name, addr, size, crc, *args, **kwargs):
+        Command.__init__(self, rid, flash.flash_record, slot, name, addr, size, crc, *args, **kwargs)
+
+    def reply(self, info):
+        self.respond(info, "written")
+
+
 #
 #
 
 class RetryPolicy:
 
     def __init__(self, dev):
-        self.die = 120
+        self.die = 60 * 10
         self.timeout = dev.get_poll_period() * 1.5
-        self.retries = 5
+        self.retries = 20
         self.exp = False
 
 #
@@ -336,6 +353,12 @@ class Handler:
     def read_req(self, addr, size, ack=None, nak=None):
         self.command(ReadReq, addr, size, ack=ack, nak=nak)
 
+    def write_req(self, addr, b64, ack=None, nak=None):
+        self.command(WriteReq, addr, b64, ack=ack, nak=nak)
+
+    def slot_write(self, slot, name, addr, size, crc, ack=None, nak=None):
+        self.command(SlotWrite, slot, name, addr, size, crc, ack=ack, nak=nak)
+
     #
     #
 
@@ -382,6 +405,11 @@ class Handler:
         else:
             end = "Error, crc=%04X" % crc
         print "%02d %8s %7d %7d %04X %s" % (slot, name, addr, size, scrc, end)
+
+    def progress(self, done, todo):
+        percent = 100 * (done / float(todo))
+        print int(100 - percent), "%", "\r",
+        sys.stdout.flush()
 
     #
     #
@@ -492,9 +520,7 @@ class Handler:
             else:
                 log("duplicate?", addr)
 
-            percent = 100 * (len(s["m"]) / float(s["blocks"]))
-            print int(100 - percent), "%", "\r",
-            sys.stdout.flush()
+            self.progress(len(s["m"]), s["blocks"])
 
             if not len(s["m"]):
                 verify()
@@ -542,6 +568,107 @@ class Handler:
             self.read_block(addr, size, fname, ack=ack)
 
         self.slot_req(slot, ack=on_slot)
+
+    #
+    #
+
+    def make_name(self, name):
+        if name is None:
+            name = ""
+        name += "-" * 8
+        return name[:8]
+
+    #
+    #
+
+    def write(self, start_addr, fname, slot, name=None, ack=None):
+
+        if not start_addr:
+            self.kill("no address specified")
+        if not fname:
+            self.kill("no filename specified")
+
+        print "Write", fname, "at address", start_addr
+
+        queue = []
+        packets = {}
+        s = {}
+
+        data = open(fname).read()
+
+        c = CRC16()
+        crc = c.calculate(data)
+
+        def on_slot(info):
+            log(info)
+            print info
+            self.chain(ack)
+
+        def verify():
+            if crc == s["crc"]:
+                print "Verified Okay, crc=%04X" % crc
+                # write slot
+                if slot is None:
+                    self.chain(ack)
+                else:
+                    self.slot_write(slot, name, start_addr, len(data), crc, ack=on_slot)
+
+            else:
+                self.kill("Verify failed, bad CRC")
+
+        def on_crc(info):
+            log("on_crc", info)
+            s["crc"] = info.get("crc")
+
+        def flush(n):
+            for i in range(n):
+                if queue:
+                    fn = queue.pop()
+                    if fn:
+                        fn()
+
+        def on_write(info):
+            log("on_write", info)
+            self.progress(len(packets), s["packets"])
+            addr = info.get("addr")
+            crc = info.get("crc")
+            if packets.get(addr):
+                xcrc, fn = packets.get(addr)
+                if crc != xcrc:
+                    #self.kill("Bad CRC")
+                    print "Bad CRC", info
+                    queue.append(fn)
+                del packets[addr]
+            flush(1)
+
+            if not packets:
+                verify()
+
+        def make_fn(addr, data, ack):
+            def fn():
+                b64 = base64.b64encode(data)
+                self.write_req(addr, b64, ack=ack)
+            return fn
+
+        def on_info(info):
+            self.render_info(info)
+            packet = info.get("packet")
+
+            for addr in range(0, len(data), packet):
+                size = min(packet, (len(data) - addr))
+                d = data[addr:addr+size]
+                a = start_addr + addr
+                fn = make_fn(a, d, on_write)
+                queue.append(fn)
+                c = CRC16()
+                crc = c.calculate(d)
+                packets[a] = crc, fn
+
+            s["packets"] = len(queue)
+            flush(10)
+
+        self.info_req(ack=on_info, nak=self.on_no_info)
+        self.crc_req(start_addr, len(data), ack=on_crc)
 
 #
 #
@@ -604,6 +731,8 @@ if __name__ == "__main__":
             handler.read(opts.slot, opts.fname)
         else:
             handler.read_block(opts.addr, opts.size, opts.fname) 
+    elif opts.write:
+        handler.write(opts.addr, opts.fname, opts.slot, opts.name)
 
     while not handler.dead:
         try:
