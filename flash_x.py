@@ -194,6 +194,7 @@ class Command:
                     self.die_timeout = None
                 sched.add(self.timeout, self.on_retry)
             except Exception, ex:
+                log("exception", str(ex))
                 self.nak(ex)
         txq.add(fn)
 
@@ -271,6 +272,14 @@ class CrcReq(Command):
     def reply(self, info):
         self.respond(info, "crc")
 
+class ReadReq(Command):
+
+    def __init__(self, flash, rid, addr, size, *args, **kwargs):
+        Command.__init__(self, rid, flash.flash_read_req, addr, size, *args, **kwargs)
+
+    def reply(self, info):
+        self.respond(info, "read")
+
 #
 #
 
@@ -278,7 +287,7 @@ class RetryPolicy:
 
     def __init__(self, dev):
         self.die = 120
-        self.timeout = dev.get_poll_period()
+        self.timeout = dev.get_poll_period() * 1.5
         self.retries = 5
         self.exp = False
 
@@ -324,6 +333,9 @@ class Handler:
     def crc_req(self, addr, size, ack=None, nak=None):
         self.command(CrcReq, addr, size, ack=ack, nak=nak)
 
+    def read_req(self, addr, size, ack=None, nak=None):
+        self.command(ReadReq, addr, size, ack=ack, nak=nak)
+
     #
     #
 
@@ -336,6 +348,7 @@ class Handler:
 
     def kill(self, *args):
         log("KILL", args)
+        print "KILL", args
         self.dead = True
 
     def chain(self, ack):
@@ -347,6 +360,10 @@ class Handler:
 
     #
     #
+
+    def on_no_info(self, info):
+        print "No Flash Found"
+        self.kill()
 
     def render_info(self, info):
         size = info.get("blocks") * info.get("size")
@@ -366,7 +383,10 @@ class Handler:
             end = "Error, crc=%04X" % crc
         print "%02d %8s %7d %7d %04X %s" % (slot, name, addr, size, scrc, end)
 
-    def test(self, ack=None):
+    #
+    #
+
+    def get_slots(self, slot_req=None, ack=None):
 
         slots = { 
             "s" : {},
@@ -378,7 +398,7 @@ class Handler:
                 s = slots.get("slot")
                 info = slots["s"].get(s)
                 if not info:
-                    return
+                    break
                 sinfo = info.get("info")
                 self.render_slot(sinfo, info)
                 slots["slot"] += 1
@@ -387,10 +407,14 @@ class Handler:
             def on_crc(info):
                 info["info"] = slot_info
                 log("on_crc", slot_info)
-                slot = slot_info.get("slot")
-                slots["s"][slot] = info
-                show()
-                if len(slots["s"]) == 8:
+                if slot_req is None:
+                    slot = slot_info.get("slot")
+                    slots["s"][slot] = info
+                    show()
+                    if len(slots["s"]) == 8:
+                        self.chain(ack)
+                else:
+                    self.render_slot(slot_info, info)
                     self.chain(ack)
             return on_crc
 
@@ -403,10 +427,6 @@ class Handler:
             crc = info.get("crc")
             self.crc_req(addr, size, ack=make_on_crc(info))
 
-        def on_no_info(info):
-            print "No Flash Found"
-            self.kill()
-
         def on_info(info):
             log("on_info", info)
             if not info.get("blocks"):
@@ -414,10 +434,114 @@ class Handler:
             self.render_info(info)
             slots["slot"] = 0
 
-        self.info_req(ack=on_info, nak=on_no_info)
+        self.info_req(ack=on_info, nak=self.on_no_info)
         # make the slot requests anyway
-        for i in range(8):
-            self.slot_req(i, ack=on_slot)
+        if not slot_req is None:
+            self.slot_req(slot_req, ack=on_slot)
+        else:
+            for i in range(8):
+                self.slot_req(i, ack=on_slot)
+
+    #
+    #
+
+    def read_block(self, start_addr, size, fname, ack=None):
+        print "Read File", start_addr, size, fname
+
+        if not size:
+            self.kill("zero size file")
+
+        if not fname:
+            self.kill("no filename specified")
+
+        s = {
+            "f" : open(fname, "w"),
+            "m" : {},
+            "crc" : None,
+            "blocks" : None,
+        }
+        queue = []
+
+        def verify():
+            s["f"].close()
+            c = CRC16()
+            raw = open(fname).read()
+            crc = c.calculate(raw)
+
+            if crc == s["crc"]:
+                print "Verified okay, CRC=%04X" % crc
+                self.chain(ack)
+            else:
+                print "Bad CRC %04X != %04X" % (crc, s["crc"])
+                self.kill()
+
+        def on_read(info):
+            log("on_read", info)
+            addr = info.get("addr")
+            a = addr - start_addr
+            data = info.get("data64")
+            data = base64.b64decode(data)
+
+            if s["m"].get(addr):
+                f = s["f"]
+                f.seek(a)
+                f.write(data)
+                del s["m"][addr]
+
+                flush(1)
+            else:
+                log("duplicate?", addr)
+
+            percent = 100 * (len(s["m"]) / float(s["blocks"]))
+            print int(100 - percent), "%", "\r",
+            sys.stdout.flush()
+
+            if not len(s["m"]):
+                verify()
+
+        def flush(n):
+            for i in range(n):
+                if queue:
+                    fn = queue.pop()
+                    if fn:
+                        fn()
+
+        def on_info(info):
+            self.render_info(info)
+            packet = info.get("packet")
+            # mustn't send more than 256 requests!
+            for a in range(start_addr, start_addr+size, packet):
+                sz = min(packet, (start_addr+size) - a)
+                def make(addr, size):
+                    def fn():
+                        self.read_req(addr, size, ack=on_read)
+                    return fn
+                queue.insert(0, make(a, sz))
+                s["m"][a] = True
+
+            s["blocks"] = len(queue)
+            flush(10)
+
+        def on_crc(info):
+            log("on_crc", info)
+            s["crc"] = info.get("crc")
+
+        self.info_req(ack=on_info, nak=self.on_no_info)
+        self.crc_req(start_addr, size, ack=on_crc)
+
+    #
+    #
+
+    def read(self, slot, fname, ack=None):
+
+        print "Read slot", slot
+
+        def on_slot(info):
+            addr = info.get("addr")
+            size = info.get("size")
+            self.read_block(addr, size, fname, ack=ack)
+
+        self.slot_req(slot, ack=on_slot)
 
 #
 #
@@ -472,7 +596,14 @@ if __name__ == "__main__":
     reader.start()
 
     handler = Handler(dev)
-    handler.test()
+
+    if opts.dir:
+        handler.get_slots(opts.slot)
+    elif opts.read:
+        if not opts.slot is None:
+            handler.read(opts.slot, opts.fname)
+        else:
+            handler.read_block(opts.addr, opts.size, opts.fname) 
 
     while not handler.dead:
         try:
