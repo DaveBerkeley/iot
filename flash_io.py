@@ -608,7 +608,7 @@ class Handler:
 
     def write(self, start_addr, fname, slot, name=None, ack=None):
 
-        if not start_addr:
+        if start_addr is None:
             self.kill("no address specified")
         if not fname:
             self.kill("no filename specified")
@@ -626,7 +626,7 @@ class Handler:
 
         def on_slot(info):
             log(info)
-            print info
+            print "Slot", slot, "written"
             self.chain(ack)
 
         def on_crc(info):
@@ -687,6 +687,12 @@ class Handler:
                 crc = c.calculate(d)
                 packets[a] = crc, fn
 
+            if len(data) == 0: # empty file
+                fn = make_fn(0, "", on_write)
+                queue.append(fn)
+                crc = 0
+                packets[0] = crc, fn
+
             s["packets"] = len(queue)
             flush(10)
 
@@ -746,11 +752,9 @@ class Handler:
             self.kill("Destination slot not specified")
 
         def on_write(info):
-            print info
             self.chain(ack)
 
         def on_slot(info):
-            print info
             n = name or info.get("name")
             n = self.make_name(n)
             addr = info.get("addr")
@@ -811,7 +815,10 @@ if __name__ == "__main__":
         now = time.time()
         for name in names:
             d = DeviceProxy(server, name)
-            t = now - d.get_last_message()
+            try:
+                t = now - d.get_last_message()
+            except TypeError:
+                t = -1
             sleepy = d.sleepy()
             dt = d.get_poll_period()
             print "%-20s sleepy=%-5s period=%-3d last=%.1f" % (name, sleepy, dt, t)
