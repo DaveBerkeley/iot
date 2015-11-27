@@ -296,6 +296,13 @@ class SlotWrite(Command):
     def reply(self, info):
         self.respond(info, "written")
 
+class BootReq(Command):
+
+    def __init__(self, flash, rid, *args, **kwargs):
+        Command.__init__(self, rid, flash.flash_reboot, *args, **kwargs)
+
+    def reply(self, info):
+        pass
 
 #
 #
@@ -328,7 +335,7 @@ class Handler:
         return Handler.id
 
     #
-    #
+    #   Command requests
 
     def command(self, klass, *args, **kwargs):
         rid = Handler.make_id()
@@ -359,6 +366,9 @@ class Handler:
     def slot_write(self, slot, name, addr, size, crc, ack=None, nak=None):
         self.command(SlotWrite, slot, name, addr, size, crc, ack=ack, nak=nak)
 
+    def boot_req(self, ack=None, nak=None):
+        self.command(BootReq, ack=ack, nak=nak)
+
     #
     #
 
@@ -382,7 +392,7 @@ class Handler:
             self.dead = True
 
     #
-    #
+    #   Common rendering
 
     def on_no_info(self, info):
         print "No Flash Found"
@@ -412,7 +422,7 @@ class Handler:
         sys.stdout.flush()
 
     #
-    #
+    #   Read the slot directory (possibly just one slot)
 
     def get_slots(self, slot_req=None, ack=None):
 
@@ -471,7 +481,20 @@ class Handler:
                 self.slot_req(i, ack=on_slot)
 
     #
+    #   Read a binary file, possibly converting from IntelHex
+
+    def read_file(self, filename):
+        if filename.endswith(".hex"):
+            print "Convert from IntelHex"
+            io = StringIO()
+            convert(filename, io, False)
+            data = io.getvalue()
+        else:
+            data = open(filename).read()
+        return data
+
     #
+    #   Read a block and save the data as a file
 
     def read_block(self, start_addr, size, fname, ack=None):
         print "Read File", start_addr, size, fname
@@ -493,7 +516,7 @@ class Handler:
         def verify():
             s["f"].close()
             c = CRC16()
-            raw = open(fname).read()
+            raw = self.read_file(fname)
             crc = c.calculate(raw)
 
             if crc == s["crc"]:
@@ -556,7 +579,7 @@ class Handler:
         self.crc_req(start_addr, size, ack=on_crc)
 
     #
-    #
+    #   Read a slot and save the data as a file
 
     def read(self, slot, fname, ack=None):
 
@@ -576,10 +599,12 @@ class Handler:
         if name is None:
             name = ""
         name += "-" * 8
+        name = name.replace("?", "")
         return name[:8]
 
     #
-    #
+    #   Write a file at start_addr, 
+    #   optionaly saving the info as a slot/name.
 
     def write(self, start_addr, fname, slot, name=None, ack=None):
 
@@ -592,7 +617,7 @@ class Handler:
         packets = {}
         s = {}
 
-        data = open(fname).read()
+        data = self.read_file(fname)
 
         c = CRC16()
         crc = c.calculate(data)
@@ -604,8 +629,10 @@ class Handler:
             print info
             self.chain(ack)
 
-        def verify():
-            if crc == s["crc"]:
+        def on_crc(info):
+            log("on_crc", info)
+            c = info.get("crc")
+            if crc == c:
                 print "Verified Okay, crc=%04X" % crc
                 # write slot
                 if slot is None:
@@ -614,11 +641,7 @@ class Handler:
                     self.slot_write(slot, name, start_addr, len(data), crc, ack=on_slot)
 
             else:
-                self.kill("Verify failed, bad CRC")
-
-        def on_crc(info):
-            log("on_crc", info)
-            s["crc"] = info.get("crc")
+                self.kill("Verify failed, bad CRC", crc, c)
 
         def flush(n):
             for i in range(n):
@@ -642,7 +665,7 @@ class Handler:
             flush(1)
 
             if not packets:
-                verify()
+                self.crc_req(start_addr, len(data), ack=on_crc)
 
         def make_fn(addr, data, ack):
             def fn():
@@ -668,13 +691,12 @@ class Handler:
             flush(10)
 
         self.info_req(ack=on_info, nak=self.on_no_info)
-        self.crc_req(start_addr, len(data), ack=on_crc)
 
     #
-    #
+    #   Verify a block against a file
 
     def verify_block(self, fname, addr, size, ack=None):
-        data = open(fname).read()
+        data = self.read_file(fname)
         c = CRC16()
         crc = c.calculate(data)
 
@@ -693,7 +715,7 @@ class Handler:
         self.crc_req(addr, size, ack=on_crc)
 
     #
-    #
+    #   Verify a slot against a file
 
     def verify(self, fname, slot, ack=None):
 
@@ -706,6 +728,48 @@ class Handler:
             self.verify_block(fname, info.get("addr"), info.get("size"), ack)
 
         self.slot_req(slot, ack=on_slot)
+
+    #
+    #   Copy one slot to another, possibly giving it a new name.
+
+    def copy(self, from_slot, to_slot, name, ack=None):
+
+        print "Copy slot", from_slot, "to slot", to_slot,
+        if name:
+            print "as", name
+        else:
+            print
+
+        if from_slot is None:
+            self.kill("Source slot not specified")
+        if to_slot is None:
+            self.kill("Destination slot not specified")
+
+        def on_write(info):
+            print info
+            self.chain(ack)
+
+        def on_slot(info):
+            print info
+            n = name or info.get("name")
+            n = self.make_name(n)
+            addr = info.get("addr")
+            size = info.get("size")
+            crc = info.get("crc")
+            self.slot_write(to_slot, n, addr, size, crc, ack=on_write)
+
+        self.slot_req(from_slot, ack=on_slot)
+
+    #
+    #   Force the remote device to reboot
+
+    def boot(self, ack=None):
+
+        def on_boot(info):
+            pass
+
+        self.boot_req(ack=on_boot)
+        self.chain(ack)
 
 #
 #
@@ -725,7 +789,9 @@ if __name__ == "__main__":
     p.add_option("-V", "--verify", dest="verify", action="store_true")
     p.add_option("-R", "--read", dest="read", action="store_true")
     p.add_option("-W", "--write", dest="write", action="store_true")
-    p.add_option("-A", "--all", dest="all", action="store_true")
+    p.add_option("-A", "--audit", dest="audit", action="store_true")
+    p.add_option("-C", "--copy", dest="copy", type="int")
+    p.add_option("-B", "--boot", dest="boot", action="store_true")
 
     opts, args = p.parse_args()
 
@@ -738,7 +804,7 @@ if __name__ == "__main__":
 
     server = jsonrpclib.Server('http://%s:8888' % jsonserver)
 
-    if opts.all:
+    if opts.audit:
         dev = DeviceProxy(server, "gateway")
         names = dev.get_devices()
         names.sort()
@@ -775,6 +841,13 @@ if __name__ == "__main__":
             handler.verify(opts.fname, opts.slot)
         else:
             handler.verify_block(opts.fname, opts.addr, opts.size)
+    elif not opts.copy is None:
+        handler.copy(opts.slot, opts.copy, opts.name) 
+    elif opts.boot:
+        handler.boot()
+    else:
+        print "No command specified"
+        handler.dead = True
 
     while not handler.dead:
         try:
