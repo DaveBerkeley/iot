@@ -468,7 +468,7 @@ class Handler:
         def on_info(info):
             log("on_info", info)
             if not info.get("blocks"):
-                return on_no_info()
+                return self.on_no_info(info)
             self.render_info(info)
             slots["slot"] = 0
 
