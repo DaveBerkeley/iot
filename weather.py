@@ -3,6 +3,7 @@
 import os
 import time
 import datetime
+import json
 
 import requests
 
@@ -73,7 +74,8 @@ def log_site(ident, name):
         f = file(path, "a")
 
     info["time"] = now.strftime("%Y/%m/%d %H:%M:%S")
-    print >> f, info
+    j = json.dumps(info) + "\n"
+    f.write(j)
     f.flush()
 
 #
