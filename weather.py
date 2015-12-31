@@ -6,17 +6,19 @@ import datetime
 
 import requests
 
+# need a weather_conf.py with your key in ..
+from weather_conf import KEY
+
 # See OpenWeatherMap API http://openweathermap.org/
 owm = "http://api.openweathermap.org/data/2.5/weather?id=%d&units=metric"
 
 #
 #
 
-def fetch(ident, apikey=None):
+def fetch(ident, apikey=KEY):
     url = owm % ident
     if apikey:
-        url += "&APPID" + apikey
-
+        url += "&APPID=" + apikey
     r = requests.get(url)
     info = r.json()
 
