@@ -278,7 +278,7 @@ def syslog_handler(path, broker, data):
 def weather_handler(path, broker, data):
     # /usr/local/data/weather/2015/06/29.log
     # json data
-    broker.send("home/weather", json.dumps(data))
+    broker.send("home/weather", data)
 
 #
 #

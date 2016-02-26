@@ -1,6 +1,7 @@
 
 import struct 
 import base64
+import string
 
 from core import log
 
@@ -80,6 +81,13 @@ class FlashInterface:
 
     def cmd_record(self, info, data):
         req_id, slot, name, addr, size, crc = struct.unpack("<BB8sLHH", data)
+        n = []
+        for c in name:
+            if c in string.printable:
+                n.append(c)
+            else:
+                n.append('?')
+        name = "".join(n)
         info["flash"] = { 
             "cmd"   : "record", 
             "rid"   : req_id,

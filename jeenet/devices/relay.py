@@ -38,7 +38,7 @@ class RelayDev(JeeNodeDev,FlashInterface):
         self.tx_message(msg_id, raw, "set_state", True)
 
     def get_poll_period(self):
-        return 60
+        return 5
 
     api = JeeNodeDev.api + [ "set_relay" ]
 

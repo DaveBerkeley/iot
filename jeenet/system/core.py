@@ -18,7 +18,11 @@ import bencode
 
 log_lock = Lock()
 
+verbose = True
+
 def log(*args):
+    if not verbose:
+        return
     log_lock.acquire()
     now = datetime.datetime.now()
     ymd = now.strftime("%Y/%m/%d")
@@ -248,7 +252,13 @@ class Device:
     def kill(self):
         self.killed = True
 
-    api = [ "report_state" ]
+    def get_poll_period(self):
+        return None
+
+    def get_last_message(self):
+        return self.last_response
+
+    api = [ "report_state", "get_poll_period", "get_last_message" ]
 
 def get_device(node):
     return devices.get(node)
