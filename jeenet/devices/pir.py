@@ -12,7 +12,7 @@ class PirSensor(JeeNodeDev):
     def to_info(self, data):
         rx_fields = [ 
             (1<<0, "pir", "<B"), 
-            (1<<1, "temp", "<H"),
+            (1<<1, "temp", "<h"),
             (1<<2, "vcc", "<H"),
             (self.text_flag, "text", "p"),
         ]

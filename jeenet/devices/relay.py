@@ -16,7 +16,7 @@ class RelayDev(JeeNodeDev,FlashInterface):
 
     def to_info(self, data):
         rx_fields = [ 
-            (1<<1, "temp", "<H"),
+            (1<<1, "temp", "<h"),
             (1<<2, "relay", "<B"), 
             (1<<3, "vcc", "<H"),
             (self.text_flag, "text", "p"),

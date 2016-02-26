@@ -25,7 +25,7 @@ class Triac(JeeNodeDev):
     def to_info(self, data):
         fields = [ 
             (1<<0, "power", "<H"), 
-            (1<<1, "temp", "<H"), 
+            (1<<1, "temp", "<h"), 
             (self.text_flag, "text", "p"),
         ]
         msg_id, flags, info = message_info(data, self.fmt_header, fields)

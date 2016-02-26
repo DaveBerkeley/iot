@@ -261,7 +261,7 @@ class Gateway(JeeNodeDev):
 
     def to_info(self, data):
         fields = [ 
-            (1<<0, "temp", "<H"),
+            (1<<0, "temp", "<h"),
             (1<<1, "packets", "<BH"),
         ]
         msg_id, flags, info = message_info(data, self.fmt_header, fields)
