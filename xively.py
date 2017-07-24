@@ -151,21 +151,35 @@ def on_pressure_msg(x):
     )
     tx_info("pressure", info)
 
+def ip_2_mac(ip):
+    # Lookup the MAC address in ARP table
+    f = open("/proc/net/arp")
+    for line in f:
+        parts = line.split()
+        if parts[0] == ip:
+            return parts[3]
+    return None
+
+pir_lut = {
+    # Hard code the known MAC Addresses
+    '18:fe:34:9c:65:20' : 'pir_04', # Front room
+    '18:fe:34:9c:65:5c' : 'pir_05', # Office
+    '18:fe:34:9c:56:d0' : 'pir_06',
+    '18:fe:34:9c:56:bd' : 'pir_07',
+    '18:fe:34:9c:56:cc' : 'pir_08', # Back room
+    '18:fe:34:9c:56:ca' : 'pir_09', # Front bedroom
+}
+
 def on_home_msg(x):
     data = json.loads(x.payload)
     # TODO : make this smarter!
     ip = data.get("ipaddr")
-    # get the final octet of the ip address
-    raw = socket.inet_aton(ip)
-    end = ord(raw[3])
-    # move eg. 192.168.0.105 to 05
-    if end > 100:
-        end -= 100
+    mac = ip_2_mac(ip)
+    tag = pir_lut.get(mac)
 
     if data.get("temp"):
-        field = "pir_%02d" % end
         info = ( 
-            ( field, data["temp"], ), 
+            ( tag, data["temp"], ), 
         )
         tx_info("home", info)
 
