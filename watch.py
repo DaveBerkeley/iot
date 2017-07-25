@@ -294,18 +294,18 @@ syslog_dir = "/var/log"
 
 handlers = {
     iot_dir : iot_handler,
-    rivers_dir : rivers_handler,
-    power_dir : power_handler,
+    #rivers_dir : rivers_handler,
+    #power_dir : power_handler,
     solar_dir : solar_handler,
     monitor_dir : monitor_handler,
-    gas_dir : gas_handler,
+    #gas_dir : gas_handler,
     weather_dir : weather_handler,
-    syslog_dir : None, # handled by syslog handler
+    #syslog_dir : None, # handled by syslog handler
 }
 
 paths = handlers.keys()
 
-handlers["/var/log/syslog"] = syslog_handler
+#handlers["/var/log/syslog"] = syslog_handler
 
 #
 #
