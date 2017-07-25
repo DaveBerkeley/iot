@@ -132,7 +132,6 @@ def on_jeenet_msg(x):
 
 def on_net_msg(x):
     data = json.loads(x.payload)
-
     info = []
     if data.get("host") == "klatu":
         t0 = data.get("temp_0")
@@ -141,6 +140,12 @@ def on_net_msg(x):
             return
         info.append(( str("klatu_0"), t0 ))
         info.append(( str("klatu_1"), t1 ))
+
+        for key in data.keys():
+            if key.startswith("load_"):
+                num = key[len("load_"):]
+                info.append(( str("klatu_load_" + num), 100.0 * float(data[key])))
+
         tx_info("klatu_temp", info)
 
 def on_pressure_msg(x):
