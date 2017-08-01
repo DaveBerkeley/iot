@@ -169,7 +169,7 @@ pir_lut = {
     # Hard code the known MAC Addresses
     '18:fe:34:9c:65:20' : 'pir_04', # Front room
     '18:fe:34:9c:65:5c' : 'pir_05', # Office
-    '18:fe:34:9c:56:d0' : 'pir_06',
+    '18:fe:34:9c:56:d0' : 'pir_06', # Green Box
     '18:fe:34:9c:56:bd' : 'pir_07',
     '18:fe:34:9c:56:cc' : 'pir_08', # Back room
     '18:fe:34:9c:56:ca' : 'pir_09', # Front bedroom
