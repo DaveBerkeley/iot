@@ -130,21 +130,42 @@ def on_jeenet_msg(x):
     if len(info):
         tx_info(topic, info)
 
+last_net = {}
+
 def on_net_msg(x):
     data = json.loads(x.payload)
     info = []
     if data.get("host") == "klatu":
         t0 = data.get("temp_0")
         t1 = data.get("temp_1")
+        rx = data.get("rx")
+        tx = data.get("tx")
         if (t0 is None) or (t1 is None):
+            return
+        if (rx is None) or (tx is None):
             return
         info.append(( str("klatu_0"), t0 ))
         info.append(( str("klatu_1"), t1 ))
+
+        info.append(( str("klatu_rx"), rx ))
+        info.append(( str("klatu_tx"), tx ))
+
+        def delta(name, value):
+            last = last_net.get(name)
+            if not last is None:
+                info.append(( str(name + "_d"), str(int(value) - int(last) )))
+
+        delta("klatu_rx", rx)
+        delta("klatu_tx", tx)
 
         for key in data.keys():
             if key.startswith("load_"):
                 num = key[len("load_"):]
                 info.append(( str("klatu_load_" + num), 100.0 * float(data[key])))
+
+        for field, value in info:
+            #print field, value
+            last_net[field] = value
 
         tx_info("klatu_temp", info)
 
