@@ -212,7 +212,7 @@ else:
 #
 #
 
-mqtt = broker.Broker("xively", server="mosquitto")
+mqtt = broker.Broker("thingspeak", server="mosquitto")
 mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
 mqtt.subscribe("home/net/#", on_net_msg)
 mqtt.subscribe("home/pressure", on_pressure_msg)
