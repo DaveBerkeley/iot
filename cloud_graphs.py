@@ -99,41 +99,34 @@ def on_jeenet_msg(x):
 last_net = {}
 
 def on_net_msg(x):
+    global last_net
     data = json.loads(x.payload)
-    info = []
-    if data.get("host") == "klatu":
-        t0 = data.get("temp_0")
-        t1 = data.get("temp_1")
-        rx = data.get("rx")
-        tx = data.get("tx")
-        if (t0 is None) or (t1 is None):
-            return
-        if (rx is None) or (tx is None):
-            return
-        info.append(( str("klatu_0"), t0 ))
-        info.append(( str("klatu_1"), t1 ))
 
-        info.append(( str("klatu_rx"), rx ))
-        info.append(( str("klatu_tx"), tx ))
+    fields = [ 'temp_0', 'temp_1', 'load_0', 'load_1', 'rx', 'tx', 'drx', 'dtx' ]
 
-        def delta(name, value):
-            last = last_net.get(name)
+    host = data.get("host")
+    if not host:
+        return
+
+    d = {}
+    for i, field in enumerate(fields):
+        value = data.get(field)
+        if value is None:
+            continue
+        name = "field" + str(i+1)
+        d[name] = float(value)
+
+        def delta(field, value, idx):
+            last = last_net.get(field)
             if not last is None:
-                info.append(( str(name + "_d"), str(int(value) - int(last) )))
+                name = "field" + str(idx+1)
+                d[name] = int(value) - int(last)
 
-        delta("klatu_rx", rx)
-        delta("klatu_tx", tx)
+        delta("rx", data.get("rx"), fields.index("rx")+2)
+        delta("tx", data.get("tx"), fields.index("tx")+2)
 
-        for key in data.keys():
-            if key.startswith("load_"):
-                num = key[len("load_"):]
-                info.append(( str("klatu_load_" + num), 100.0 * float(data[key])))
-
-        for field, value in info:
-            #print field, value
-            last_net[field] = value
-
-        tx_info("klatu_temp", info)
+    last_net = data
+    tx_cloud(host, **d)
 
 #
 #
@@ -221,7 +214,7 @@ else:
 
 mqtt = broker.Broker("xively", server="mosquitto")
 mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
-#mqtt.subscribe("home/net/#", on_net_msg)
+mqtt.subscribe("home/net/#", on_net_msg)
 mqtt.subscribe("home/pressure", on_pressure_msg)
 #mqtt.subscribe("home/gas", on_gas_msg)
 mqtt.subscribe("home/dust", on_dust_msg)
