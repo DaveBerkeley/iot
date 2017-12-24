@@ -26,12 +26,9 @@ class ThingSpeak:
 
     url = "api.thingspeak.com"
 
-    def __init__(self, key):
-        self.key = key
-
-    def post(self, **kwargs):
+    def post(self, key, **kwargs):
         d = {
-            "key" : self.key,
+            "key" : key,
         }
 
         d.update(kwargs)
@@ -47,6 +44,8 @@ class ThingSpeak:
             #print response.status, response.reason
             data = response.read()
             conn.close()
+            if response.status != 200:
+                print "Error", response.status, response.reason
         except:
             print "connection failed"
 
@@ -56,7 +55,8 @@ class ThingSpeak:
 from thing_speak_keys import keys
 
 if __name__ == "__main__":
-    thingspeak = ThingSpeak(keys["solar"]["write"])
-    thingspeak.post(field1=200, field2=20, field3=12341234)
+    key = keys["solar"]["write"]
+    thingspeak = ThingSpeak()
+    thingspeak.post(key=key, field1=200, field2=20, field3=12341234)
 
 # FIN
