@@ -135,13 +135,18 @@ def on_net_msg(x):
 
         tx_info("klatu_temp", info)
 
+#
+#
+
 def on_pressure_msg(x):
     data = json.loads(x.payload)
-    info = ( 
-        ( "pressure", data["p"], ), 
-        ( "sea", data["sea"], ), 
-    )
-    tx_info("pressure", info)
+    pressure = data["p"]
+    sea = data["sea"]
+    tx_cloud("barometer", field1=pressure, field2=sea)
+
+#
+#
+
 
 def ip_2_mac(ip):
     # Lookup the MAC address in ARP table
@@ -213,7 +218,7 @@ else:
 mqtt = broker.Broker("xively", server="mosquitto")
 mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
 #mqtt.subscribe("home/net/#", on_net_msg)
-#mqtt.subscribe("home/pressure", on_pressure_msg)
+mqtt.subscribe("home/pressure", on_pressure_msg)
 #mqtt.subscribe("home/gas", on_gas_msg)
 #mqtt.subscribe("home/dust", on_dust_msg)
 mqtt.subscribe("home/node/#", on_home_msg)
