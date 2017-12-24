@@ -75,7 +75,7 @@ def on_jeenet_msg(x):
     data = json.loads(x.payload)
 
     topic = x.topic.split("/")[-1]
-    log(data, topic)
+    #log(data, topic)
 
     fields = topics.get(topic)
     if not fields:
@@ -181,6 +181,9 @@ def on_home_msg(x):
     if not temp is None:
         tx_cloud(tag, field1=temp)
 
+#
+#
+
 def on_gas_msg(x):
     data = json.loads(x.payload)
     info = ( 
@@ -191,14 +194,15 @@ def on_gas_msg(x):
     )
     tx_info("gas", info)
 
+#
+#
+
 def on_dust_msg(x):
     data = json.loads(x.payload)
-    info = ( 
-        ( "dust", data["dust"], ), 
-        ( "dust_5", data["dust_5"], ), 
-        ( "dust_10", data["dust_10"], ), 
-    )
-    tx_info("dust", info)
+    dust = data["dust"]
+    dust_5 = data["dust_5"]
+    dust_10 = data["dust_10"]
+    tx_cloud("dust", field1=dust, field2=dust_5, field3=dust_10)
 
 #
 #
@@ -220,7 +224,7 @@ mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
 #mqtt.subscribe("home/net/#", on_net_msg)
 mqtt.subscribe("home/pressure", on_pressure_msg)
 #mqtt.subscribe("home/gas", on_gas_msg)
-#mqtt.subscribe("home/dust", on_dust_msg)
+mqtt.subscribe("home/dust", on_dust_msg)
 mqtt.subscribe("home/node/#", on_home_msg)
 
 mqtt.start()
