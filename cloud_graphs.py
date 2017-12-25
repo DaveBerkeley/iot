@@ -10,6 +10,7 @@ from threading import Lock, Thread
 
 import broker
 
+sys.path.append("../keys")
 from thing_speak import ThingSpeak, keys
 
 #
