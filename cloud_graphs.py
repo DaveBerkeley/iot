@@ -5,6 +5,7 @@ import datetime
 import traceback
 import json
 import sys
+import os
 from threading import Lock, Thread
 
 import broker
@@ -200,39 +201,166 @@ def on_dust_msg(x):
 #
 #
 
-if len(sys.argv) > 1:
+#
+#   Moving Average Filter
+
+class Filter:
+
+    def __init__(self, ntaps):
+        self.ntaps = ntaps
+        self.data = None
+
+    def filter(self, data):
+        if self.data is None:
+            self.data = [ data, ] * self.ntaps
+        self.data = self.data[1:] + [ data ]
+        return int(sum(self.data) / float(self.ntaps))
+
+lpf = Filter(3)
+
+solar_last_w = None
+solar_last_t = None
+solar_yesterday = None
+solar_yesterday_w = None
+
+def on_solar(x):
+    global solar_last_w, solar_last_t, solar_yesterday, solar_yesterday_w
+    data = json.loads(x.payload)
+    #log("SOLAR", data)
+
+    kwh = data.get("power")
+    t = data.get("time")
+
+    t = datetime.datetime.strptime(t, "%Y/%m/%d %H:%M:%S")
+
+    if solar_last_w is None:
+        solar_last_w = kwh
+        solar_last_t = t
+
+        if solar_yesterday_w is None:
+            solar_yesterday_w = kwh
+        return
+
+    today = t.date()
+    if today != solar_last_t.date():
+        # day change
+        solar_yesterday = solar_last_t
+        solar_yesterday_w = solar_last_w
+
+    def get_power(p1, p2, t1, t2):
+        dt = t1 - t2
+        dt = dt.total_seconds() / 3600.0
+
+        if not dt:
+            return None
+
+        dw = p1 - p2
+        power = dw / dt
+        return power
+
+    power = get_power(kwh, solar_last_w, t, solar_last_t)
+    solar_last_t = t
+    solar_last_w = kwh
+
+    power = lpf.filter(power)
+
+    if not solar_yesterday_w is None:
+        acc = kwh - solar_yesterday_w
+    else:
+        acc = 0
+
+    tx_cloud("solar", field1=power, field2=kwh, field3=acc)
+
+#
+#
+
+def test(name):
+
     class Dummy:
         def post(self, key, **kwargs):
             log("put", key, kwargs)
 
+    global cloud
     cloud = Dummy()
-else:
-    cloud = ThingSpeak()
+
+    if name != "broker":
+        return
+
+    paths = [
+        "/usr/local/data/solar/2017/06/11.log",
+        "/usr/local/data/solar/2017/06/12.log",
+    ]
+
+    class Data:
+        def __init__(self, d):
+            self.payload = d
+
+    class xBroker:
+        def __init__(self, name, **kwargs):
+            self.idx = 0
+        def open(self, path):
+            self.f = open(path)
+            parts = path.split("/")
+            parts = parts[-3:]
+            parts[-1] = parts[-1].split(".")[0]
+            self.ymd = "/".join(parts)
+        def subscribe(self, topic, fn):
+            self.fn = fn
+        def start(self):
+            while True:
+                if self.idx >= len(paths):
+                    break
+                self.open(paths[self.idx])
+                self.idx += 1
+                for line in self.f:
+                    line = line.strip()
+                    hms, kwh = line.split()
+                    d = {
+                        "time" : self.ymd + " " + hms,
+                        "power" : int(kwh),
+                    }
+                    j = json.dumps(d)
+                    self.fn(Data(j))
+            sys.exit(0)
+
+    class xbroker:
+        Broker = xBroker
+
+    global broker
+    broker = xbroker
 
 #
 #
 
-mqtt = broker.Broker("thingspeak", server="mosquitto")
-mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
-mqtt.subscribe("home/net/#", on_net_msg)
-mqtt.subscribe("home/pressure", on_pressure_msg)
-#mqtt.subscribe("home/gas", on_gas_msg)
-mqtt.subscribe("home/dust", on_dust_msg)
-mqtt.subscribe("home/node/#", on_home_msg)
+if __name__ == "__main__":
 
-mqtt.start()
+    if len(sys.argv) > 1:
+        test(sys.argv[1])
+    else:
+        cloud = ThingSpeak()
 
-while True:
-    try:
-        time.sleep(1)
-    except KeyboardInterrupt:
-        log("irq")
-        break
-    except Exception, ex:
-        traceback.print_stack(sys.stdout)
-        raise
+    mqtt = broker.Broker("thingspeak_" + str(os.getpid()), server="mosquitto")
+    mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
+    mqtt.subscribe("home/net/#", on_net_msg)
+    mqtt.subscribe("home/pressure", on_pressure_msg)
+    mqtt.subscribe("home/dust", on_dust_msg)
+    mqtt.subscribe("home/node/#", on_home_msg)
+    mqtt.subscribe("home/solar", on_solar)
 
-mqtt.stop()
-mqtt.join()
+    #mqtt.subscribe("home/gas", on_gas_msg)
+    mqtt.start()
+
+    while True:
+        try:
+            time.sleep(1)
+        except KeyboardInterrupt:
+            log("irq")
+            break
+        except Exception, ex:
+            traceback.print_stack(sys.stdout)
+            raise
+
+    mqtt.stop()
+    mqtt.join()
 
 # FIN
