@@ -40,27 +40,14 @@ def execute(fn, key, **kwargs):
 #
 #
 
-throttle = {}
-
-def tx_data(tag, **kwargs):
-    now = time.time()
-    last = throttle.get(tag)
-
-    if (last and ((last+16) > now)):
-        return
-    tx_info(tag, **kwargs)
-
 def tx_cloud(tag, **kwargs):
     key = keys[tag]["write"]
-    log("TX", tag, key, kwargs)
+    log("TX", tag, kwargs)
     try:
         execute(cloud.post, key, **kwargs)
     except Exception, ex:
         #traceback.print_stack(sys.stdout)
         log(str(ex))
-
-def tx_info(tag, info):
-    log("TXTX", tag, info)
 
 #
 #
