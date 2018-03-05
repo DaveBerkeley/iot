@@ -52,7 +52,7 @@ def tx_cloud(tag, **kwargs):
     again = tags.get(tag)
     if not again is None:
         if again > now:
-            log("Drop", tag, again - now, **kwargs)
+            log("Drop", tag, again - now, kwargs)
             return
     key = keys[tag]["write"]
     log("TX", tag, kwargs)
