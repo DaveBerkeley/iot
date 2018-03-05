@@ -41,9 +41,23 @@ def execute(fn, key, **kwargs):
 #
 #
 
+def get_period(tag):
+    return datetime.timedelta(minutes=10)
+
+# timestamps of last tx by tag
+tags = {}
+
 def tx_cloud(tag, **kwargs):
+    now = datetime.datetime.now()
+    again = tags.get(tag)
+    if not again is None:
+        if again > now:
+            log("Drop", tag, again - now, **kwargs)
+            return
     key = keys[tag]["write"]
     log("TX", tag, kwargs)
+    tags[tag] = now + get_period(tag)
+    #return 
     try:
         execute(cloud.post, key, **kwargs)
     except Exception, ex:
