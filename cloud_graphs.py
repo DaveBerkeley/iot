@@ -42,21 +42,35 @@ def execute(fn, key, **kwargs):
 #
 
 def get_period(tag):
-    return datetime.timedelta(minutes=10)
+    t = {
+        'dust' : 60*60,
+        'gateway' : 30*60,
+    }
+    return datetime.timedelta(seconds=t.get(tag, 600))
 
 # timestamps of last tx by tag
 tags = {}
+last = {}
 
 def tx_cloud(tag, **kwargs):
+    # check if it has changed
+    state = last.get(tag)
+    if kwargs == state:
+        log("No change", tag, kwargs)
+        return
+
+    # check the elapsed time since last post
     now = datetime.datetime.now()
     again = tags.get(tag)
     if not again is None:
         if again > now:
             log("Drop", tag, again - now, kwargs)
             return
+
     key = keys[tag]["write"]
     log("TX", tag, kwargs)
     tags[tag] = now + get_period(tag)
+    last[tag] = kwargs
     #return 
     try:
         execute(cloud.post, key, **kwargs)
