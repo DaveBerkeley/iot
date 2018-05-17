@@ -137,7 +137,7 @@ def on_net_msg(x):
             last = last_net.get(field)
             if not last is None:
                 name = "field" + str(idx+1)
-                d[name] = int(value) - int(last)
+                d[name] = int(float(value)) - int(float(last))
 
         delta("rx", data.get("rx"), fields.index("rx")+2)
         delta("tx", data.get("tx"), fields.index("tx")+2)
