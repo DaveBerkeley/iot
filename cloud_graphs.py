@@ -157,6 +157,18 @@ def on_pressure_msg(x):
 #
 #
 
+def on_humidity(x):
+    data = json.loads(x.payload)
+    temp = data['temp']
+    humidity = data['humidity']
+    dev = data['dev']
+    tag = "humidity_" + str(dev)
+    log(tag, humidity, temp)
+    tx_cloud(tag, field1=humidity, field2=temp)
+
+#
+#
+
 
 def ip_2_mac(ip):
     # Lookup the MAC address in ARP table
@@ -362,6 +374,7 @@ if __name__ == "__main__":
     mqtt.subscribe("home/dust", on_dust_msg)
     mqtt.subscribe("home/node/#", on_home_msg)
     mqtt.subscribe("home/solar", on_solar)
+    mqtt.subscribe("home/humidity", on_humidity)
 
     #mqtt.subscribe("home/gas", on_gas_msg)
     mqtt.start()
