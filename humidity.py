@@ -10,6 +10,10 @@ import serial
 
 server = "klatu"
 
+dead = False
+
+period = 30
+
 #
 #
 
@@ -28,7 +32,7 @@ def log(*args):
 def init_serial(path):
     log("open serial '%s'" % path)
     s = serial.Serial(path, baudrate=9600, timeout=1, rtscts=True)
-    log("serial opened")
+    log("serial opened", path)
     return s
 
 #
@@ -46,16 +50,16 @@ def get(data):
 #
 #
 
-def monitor(dev):
-    s = init_serial('/dev/' + dev)
+def monitor(name, dev):
+    s = init_serial('/dev/' + name)
 
     last = None
 
-    while True:
+    while not dead:
         try:
             line = s.readline()
         except Exception, ex:
-            print str(ex)
+            log("exception", str(ex))
             time.sleep(10)
             s = init_serial()
             continue
@@ -66,6 +70,7 @@ def monitor(dev):
             line = line.strip()
             parts = line.split(" ")
         except:
+            log("exception", str(ex))
             continue
 
         if len(parts) != 2:
@@ -73,11 +78,12 @@ def monitor(dev):
 
         now = time.time()
         if last:
-            if (last + 30) > now:
+            if (last + period) > now:
                 continue
 
         d = {
-            "subtopic" : "humidity_0",
+            "subtopic" : "humidity",
+            "dev" : dev,
         }
 
         for part in parts:
@@ -91,8 +97,6 @@ def monitor(dev):
 #
 #
 
-serial_dev = "humidity_0"
-
 base = '/dev'
 
 devs = []
@@ -100,14 +104,30 @@ devs = []
 for name in os.listdir(base):
     if not name.startswith('humidity_'):
         continue
+    dev = name[len("humidity_"):]
     log("found", name)
-    devs.append(name)
+    devs.append((name, dev))
 
 threads = []
 
-for dev in devs:
-    thread = threading.Thread(target=monitor, args=(dev,))
+for name, dev in devs:
+
+    def fn(name, dev):
+        try:
+            monitor(name, dev)
+        except KeyboardInterrupt as ex:
+            log("exception", str(ex))
+            global dead
+            dead = True
+    thread = threading.Thread(target=fn, args=(name, dev,))
     thread.start()
     threads.append(thread)
+
+try:
+    for thread in threads:
+        thread.join()
+except KeyboardInterrupt as ex:
+    log("exception", str(ex))
+    dead = True
 
 # FIN
