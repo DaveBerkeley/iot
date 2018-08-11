@@ -51,7 +51,8 @@ def get(data):
 #
 
 def monitor(name, dev):
-    s = init_serial('/dev/' + name)
+    path = '/dev/' + name
+    s = init_serial(path)
 
     last = None
 
@@ -61,7 +62,7 @@ def monitor(name, dev):
         except Exception, ex:
             log("exception", str(ex))
             time.sleep(10)
-            s = init_serial()
+            s = init_serial(path)
             continue
 
         if not line.endswith("\r\n"):
