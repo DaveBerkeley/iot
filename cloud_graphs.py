@@ -163,8 +163,27 @@ def on_humidity(x):
     humidity = data['humidity']
     dev = data['dev']
     tag = "humidity_" + str(dev)
-    log(tag, humidity, temp)
+    #log(tag, humidity, temp)
     tx_cloud(tag, field1=humidity, field2=temp)
+
+#
+#
+
+def on_weather(x):
+    data = json.loads(x.payload)
+    main = data['main']
+    temp = str(main['temp'])
+    pressure = str(main['pressure'])
+    humidity = str(main['humidity'])
+    wind = data['wind']
+    speed = str(wind['speed'])
+    dirn = str(wind['deg'])
+    clouds = data['clouds']
+    cover = str(clouds['all'])
+
+    tag = "weather"
+    #log(tag, temp, pressure, humidity, speed, dirn, cover)
+    tx_cloud(tag, field1=temp, field2=pressure, field3=humidity, field4=speed, field5=dirn, field6=cover)
 
 #
 #
@@ -368,13 +387,15 @@ if __name__ == "__main__":
         cloud = ThingSpeak()
 
     mqtt = broker.Broker("thingspeak_" + str(os.getpid()), server="mosquitto")
-    mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
-    mqtt.subscribe("home/net/#", on_net_msg)
-    mqtt.subscribe("home/pressure", on_pressure_msg)
-    mqtt.subscribe("home/dust", on_dust_msg)
-    mqtt.subscribe("home/node/#", on_home_msg)
-    mqtt.subscribe("home/solar", on_solar)
-    mqtt.subscribe("home/humidity", on_humidity)
+    if 1:
+        mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
+        mqtt.subscribe("home/net/#", on_net_msg)
+        mqtt.subscribe("home/pressure", on_pressure_msg)
+        mqtt.subscribe("home/dust", on_dust_msg)
+        mqtt.subscribe("home/node/#", on_home_msg)
+        mqtt.subscribe("home/solar", on_solar)
+        mqtt.subscribe("home/humidity", on_humidity)
+        mqtt.subscribe("home/weather", on_weather)
 
     #mqtt.subscribe("home/gas", on_gas_msg)
     mqtt.start()
