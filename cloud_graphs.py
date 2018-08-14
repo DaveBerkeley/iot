@@ -34,7 +34,10 @@ def log(*args):
 
 def execute(fn, key, **kwargs):
     def run():
-        fn(key, **kwargs)
+        try:
+            fn(key, **kwargs)
+        except Exception as ex:
+            log("Exception", str(ex))
     thread = Thread(target=run)
     thread.start()
 
@@ -387,15 +390,24 @@ if __name__ == "__main__":
         cloud = ThingSpeak()
 
     mqtt = broker.Broker("thingspeak_" + str(os.getpid()), server="mosquitto")
+
+    def wrap(fn):
+        def f(line):
+            try:
+                fn(line)
+            except Exception as ex:
+                log("Exception", str(ex))
+        return f
+
     if 1:
-        mqtt.subscribe("home/jeenet/#", on_jeenet_msg)
-        mqtt.subscribe("home/net/#", on_net_msg)
-        mqtt.subscribe("home/pressure", on_pressure_msg)
-        mqtt.subscribe("home/dust", on_dust_msg)
-        mqtt.subscribe("home/node/#", on_home_msg)
-        mqtt.subscribe("home/solar", on_solar)
-        mqtt.subscribe("home/humidity", on_humidity)
-        mqtt.subscribe("home/weather", on_weather)
+        mqtt.subscribe("home/jeenet/#", wrap(on_jeenet_msg))
+        mqtt.subscribe("home/net/#", wrap(on_net_msg))
+        mqtt.subscribe("home/pressure", wrap(on_pressure_msg))
+        mqtt.subscribe("home/dust", wrap(on_dust_msg))
+        mqtt.subscribe("home/node/#", wrap(on_home_msg))
+        mqtt.subscribe("home/solar", wrap(on_solar))
+        mqtt.subscribe("home/humidity", wrap(on_humidity))
+        mqtt.subscribe("home/weather", wrap(on_weather))
 
     #mqtt.subscribe("home/gas", on_gas_msg)
     mqtt.start()
