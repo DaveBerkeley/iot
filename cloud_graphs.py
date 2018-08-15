@@ -37,7 +37,7 @@ def execute(fn, key, **kwargs):
         try:
             fn(key, **kwargs)
         except Exception as ex:
-            log("Exception", str(ex))
+            log("execute", "exception", str(ex))
     thread = Thread(target=run)
     thread.start()
 
@@ -174,19 +174,30 @@ def on_humidity(x):
 
 def on_weather(x):
     data = json.loads(x.payload)
-    main = data['main']
+    main = data.get('main')
+    if main is None:
+        return
+
     temp = str(main['temp'])
     pressure = str(main['pressure'])
     humidity = str(main['humidity'])
+
     wind = data['wind']
     speed = str(wind['speed'])
     dirn = str(wind['deg'])
+
     clouds = data['clouds']
     cover = str(clouds['all'])
 
+    rain = data.get('rain')
+    if rain:
+        rain = str(rain['3h'])
+    else:
+        rain = "0"
+
     tag = "weather"
-    #log(tag, temp, pressure, humidity, speed, dirn, cover)
-    tx_cloud(tag, field1=temp, field2=pressure, field3=humidity, field4=speed, field5=dirn, field6=cover)
+    #log(tag, temp, pressure, humidity, speed, dirn, cover, rain)
+    tx_cloud(tag, field1=temp, field2=pressure, field3=humidity, field4=speed, field5=dirn, field6=cover, field7=rain)
 
 #
 #
@@ -396,7 +407,7 @@ if __name__ == "__main__":
             try:
                 fn(line)
             except Exception as ex:
-                log("Exception", str(ex))
+                log("Exception", str(fn), str(ex))
         return f
 
     if 1:
