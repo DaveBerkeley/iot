@@ -9,8 +9,6 @@ import serial
 
 import broker
 
-dead = False
-
 #
 #
 
@@ -38,13 +36,12 @@ def init_serial(path):
 class UsbControl:
 
     def __init__(self, path):
+        self.dead = False
         self.path = path
-        self.s = None
-
-    def monitor(self):
         self.s = init_serial(self.path)
 
-        while not dead:
+    def monitor(self):
+        while not self.dead:
             try:
                 line = self.s.readline()
             except Exception, ex:
@@ -57,7 +54,7 @@ class UsbControl:
                 log(line.strip())
 
     def on_mqtt(self, x):
-        log("x", x.payload)
+        log("on_mqtt", x.payload)
         # validate!
         self.s.write(x.payload + "\r\n")
 
