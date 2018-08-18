@@ -35,34 +35,37 @@ def init_serial(path):
 #
 #
 
-def monitor(name):
-    path = '/dev/' + name
-    global s
-    s = init_serial(path)
+class UsbControl:
 
-    while not dead:
-        try:
-            line = s.readline()
-        except Exception, ex:
-            log("exception", str(ex))
-            time.sleep(10)
-            s = init_serial(path)
-            continue
+    def __init__(self, path):
+        self.path = path
+        self.s = None
 
-        if line:
-            log(line.strip())
+    def monitor(self):
+        self.s = init_serial(self.path)
 
+        while not dead:
+            try:
+                line = self.s.readline()
+            except Exception, ex:
+                log("exception", str(ex))
+                time.sleep(10)
+                self.s = init_serial(self.path)
+                continue
 
-def on_mqtt(x):
-    log("x", x.payload)
-    # validate!
-    s.write(x.payload + "\r\n")
+            if line:
+                log(line.strip())
+
+    def on_mqtt(self, x):
+        log("x", x.payload)
+        # validate!
+        self.s.write(x.payload + "\r\n")
 
 #
 #
 
-if 1:
-    mqtt = broker.Broker("thingspeak_" + str(os.getpid()), server="mosquitto")
+if __name__ == "__main__":
+    mqtt = broker.Broker("usb_control" + str(os.getpid()), server="mosquitto")
 
     def wrap(fn):
         def f(line):
@@ -72,14 +75,13 @@ if 1:
                 log("Exception", str(fn), str(ex))
         return f
 
-    if 1:
-        mqtt.subscribe("home/usb/0", wrap(on_mqtt))
+    usb = UsbControl("/dev/ttyUSB0")
 
-    #mqtt.subscribe("home/gas", on_gas_msg)
-    mqtt.start()
+    mqtt.subscribe("home/usb/0", wrap(usb.on_mqtt))
 
     try:
-        monitor("ttyUSB0")
+        mqtt.start()
+        usb.monitor()
     except KeyboardInterrupt:
         pass
     except Exception as ex:
