@@ -4,6 +4,7 @@ import os
 import time
 import threading
 import json
+import argparse
 
 # http://pyserial.sourceforge.net/
 import serial
@@ -46,7 +47,7 @@ class Underfloor:
 
     slow = 'h', 't'
 
-    def __init__(self, broker, path, period=10):
+    def __init__(self, broker, topic, path, period=10):
         self.dead = False
         self.path = path
         self.s = init_serial(self.path)
@@ -56,6 +57,7 @@ class Underfloor:
         self.broker = broker
         self.last = None
         self.last_time = 0
+        self.topic = topic
 
     def parse(self, line):
         d = {}
@@ -88,12 +90,13 @@ class Underfloor:
             if not line:
                 continue
 
+            log(line.strip())
+
             try:
                 d = self.parse(line)
             except Exception as ex:
                 log("exception", str(ex))
                 continue
-            log(d)
 
             now = time.time()
             if d == self.last:
@@ -102,7 +105,7 @@ class Underfloor:
 
             self.last_time = now
             self.last = d
-            self.broker.send("home/underfloor", json.dumps(d))
+            self.broker.send(self.topic, json.dumps(d))
 
     def on_fan(self, x):
         log("on_fan", x.payload)
@@ -116,7 +119,17 @@ class Underfloor:
 #
 
 if __name__ == "__main__":
-    mqtt = broker.Broker("underfloor" + str(os.getpid()), server="mosquitto")
+
+    parser = argparse.ArgumentParser(description='Interface underfloor nano to MQTT')
+    parser.add_argument('--dev', dest='dev', default='/dev/ttyUSB0')
+    parser.add_argument('--mqtt', dest='mqtt', default='mosquitto')
+    parser.add_argument('--topic', dest='topic', default='home/underfloor')
+    parser.add_argument('--fan', dest='fan', default='home/fan/0')
+    parser.add_argument('--pump', dest='pump', default='home/pump/0')
+
+    args = parser.parse_args()
+
+    mqtt = broker.Broker("underfloor" + str(os.getpid()), server=args.mqtt)
 
     def wrap(fn):
         def f(line):
@@ -126,10 +139,10 @@ if __name__ == "__main__":
                 log("Exception", str(fn), str(ex))
         return f
 
-    usb = Underfloor(mqtt, "/dev/ttyUSB0")
+    usb = Underfloor(mqtt, args.topic, args.dev)
 
-    mqtt.subscribe("home/fan/0", wrap(usb.on_fan))
-    mqtt.subscribe("home/pump/0", wrap(usb.on_pump))
+    mqtt.subscribe(args.fan, wrap(usb.on_fan))
+    mqtt.subscribe(args.pump, wrap(usb.on_pump))
 
     try:
         mqtt.start()
