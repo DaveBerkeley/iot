@@ -110,10 +110,14 @@ class Underfloor:
     def on_fan(self, x):
         log("on_fan", x.payload)
         # validate!
+        assert x.payload[0] == 'f', x.payload
+        self.s.write(x.payload + '\r\n')
 
     def on_pump(self, x):
         log("on_pump", x.payload)
         # validate!
+        assert x.payload[0] == 'p', x.payload
+        self.s.write(x.payload + '\r\n')
 
 #
 #
