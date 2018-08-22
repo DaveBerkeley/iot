@@ -19,6 +19,7 @@ lock = threading.Lock()
 def log(*args):
     with lock:
         print time.strftime("%y/%m/%d %H:%M:%S :"), 
+        print threading.current_thread().name,
         for arg in args:
             print arg,
         print
@@ -51,12 +52,15 @@ class UsbControl:
             if line.startswith(usb):
                 break
 
-        self.state = ['X'] * 7
-        self.set('S', "0123456")
-        #time.sleep(1)
-        self.state = ['X'] * 7
-        self.set('S', "0123456")
-        #time.sleep(1)
+        ports = "0123456"
+        self.state = ['X'] * len(ports)
+        for idx, c in enumerate(ports):
+            self.state[idx] = 'X'
+            self.set('S', c)
+            # force another explicit 'S'
+            self.state[idx] = 'X'
+            self.set('S', c)
+            self.set('R', c)
 
     def change(self, idx, state):
         if state == '1':
@@ -89,7 +93,7 @@ class UsbControl:
         return r
 
     def set(self, c, idx):
-        log("set", c, idx)
+        log("command", c, idx)
         if c == 'S':
             s = '1'
         elif c == 'R':
@@ -100,8 +104,8 @@ class UsbControl:
         if not idx:
             return
 
-        # TODO : wait for idx not busy
         while True:
+            # wait for idx not busy
             busy = self.get_busy()
             if self.overlap(busy, idx):
                 log("busy", busy)
@@ -121,31 +125,30 @@ class UsbControl:
     def monitor(self):
         while not self.dead:
 
-            # todo : wait for started
-            if not self.queue.empty():
-                cmd, idx = self.queue.get()
+            try:
+                msg = self.queue.get(True, 1)
+                #log("msg", msg)
+                if msg is None:
+                    log("exiting ..")
+                    break
+                cmd, idx = msg
                 self.set(cmd, idx)
 
-            try:
-                line = self.s.readline()
-            except Exception, ex:
-                log("exception", str(ex))
-                time.sleep(10)
-                self.s = init_serial(self.path)
-                continue
-
-            if not line:
-                continue
-
-            if line:
-                log(line.strip())
+            except Queue.Empty as ex:
+                pass
 
     def on_mqtt(self, x):
-        #log("on_mqtt", x.payload)
+        log("on_mqtt", x.topic, x.payload)
         # validate!
-        line = x.payload
-        cmd, idx = line[0], line[1:]
+        cmd = x.payload # 'S' or 'R'
+        # eg. 'home/usb/0/4' ie. ../<device>/<port>
+        parts = x.topic.split('/')
+        idx = str(parts[-1])
         self.queue.put((cmd, idx))
+
+    def kill(self):
+        self.dead = True
+        self.queue.put(None)
 
 #
 #
@@ -154,7 +157,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Interface underfloor nano to MQTT')
     parser.add_argument('--dev', dest='dev', default='/dev/ttyUSB0')
     parser.add_argument('--mqtt', dest='mqtt', default='mosquitto')
-    parser.add_argument('--topic', dest='topic', default='home/usb/0')
+    parser.add_argument('--topic', dest='topic', default='home/usb/0/#')
     
     args = parser.parse_args()
 
@@ -180,6 +183,7 @@ if __name__ == "__main__":
     except Exception as ex:
         log("exception", str(ex))
 
+    usb.kill()
     mqtt.stop()
     mqtt.join()
 
