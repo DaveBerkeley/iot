@@ -23,8 +23,8 @@ if [ ! -d "$D" ]; then
     mkdir -p $D
 fi
 
-# Take the photo
-fswebcam --device $DEV $P
+# Take the photo (camera is upside down, so flip)
+fswebcam --flip h --flip v --device $DEV $P
 
 # turn the lamp off. Leave the camera
 #echo "R" | mosquitto_pub -h $MQTT -t $TOPIC_CAM -l
