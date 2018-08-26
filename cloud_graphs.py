@@ -417,7 +417,7 @@ if __name__ == "__main__":
         mqtt.subscribe("home/dust", wrap(on_dust_msg))
         mqtt.subscribe("home/node/#", wrap(on_home_msg))
         mqtt.subscribe("home/solar", wrap(on_solar))
-        mqtt.subscribe("home/humidity", wrap(on_humidity))
+        mqtt.subscribe("home/humidity/#", wrap(on_humidity))
         mqtt.subscribe("home/weather", wrap(on_weather))
 
     #mqtt.subscribe("home/gas", on_gas_msg)
