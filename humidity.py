@@ -83,7 +83,7 @@ def monitor(name, dev):
                 continue
 
         d = {
-            "subtopic" : "humidity",
+            "subtopic" : "humidity/%s" % dev,
             "dev" : dev,
         }
 
