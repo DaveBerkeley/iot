@@ -125,7 +125,7 @@ class Underfloor:
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Interface underfloor nano to MQTT')
-    parser.add_argument('--dev', dest='dev', default='/dev/ttyUSB0')
+    parser.add_argument('--dev', dest='dev', default='/dev/underfloor')
     parser.add_argument('--mqtt', dest='mqtt', default='mosquitto')
     parser.add_argument('--topic', dest='topic', default='home/underfloor')
     parser.add_argument('--fan', dest='fan', default='home/fan/0')
