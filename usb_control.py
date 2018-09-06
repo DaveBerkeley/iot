@@ -154,11 +154,11 @@ class UsbControl:
 #
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Interface underfloor nano to MQTT')
-    parser.add_argument('--dev', dest='dev', default='/dev/ttyUSB0')
-    parser.add_argument('--mqtt', dest='mqtt', default='mosquitto')
-    parser.add_argument('--topic', dest='topic', default='home/usb/0/#')
-    
+    parser = argparse.ArgumentParser(description='USB power controlled hub')
+    parser.add_argument('--dev', dest='dev', default='/dev/ttyUSB0', help='eg. /dev/ttyUSB0')
+    parser.add_argument('--mqtt', dest='mqtt', default='mosquitto', help='server')
+    parser.add_argument('--topic', dest='topic', default='home/usb/0/#', help='controlling topic eg. "home/usb/0/#"')
+ 
     args = parser.parse_args()
 
     mqtt = broker.Broker("usb_control" + str(os.getpid()), server=args.mqtt)
