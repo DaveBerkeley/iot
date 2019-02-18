@@ -10,8 +10,10 @@ from threading import Lock, Thread
 
 import broker
 
-sys.path.append("../keys")
-from thing_speak import ThingSpeak, keys
+from influxdb import InfluxDBClient
+
+#sys.path.append("../keys")
+#from thing_speak import ThingSpeak, keys
 
 #
 #
@@ -42,14 +44,46 @@ def execute(fn, key, **kwargs):
     thread.start()
 
 #
+#   InfluxDb database interface
+
+class DB:
+
+    def __init__(self, name='iot'):
+        self.db = InfluxDBClient(host='localhost', port=8086)
+        self.db.switch_database(name)
+
+    def write(self, key, **kwargs):
+        ds = []
+        for k, v in kwargs.items():
+            d = {
+                'measurement' : k,
+                'tags' : { 'src' : key },
+                'fields' : { k : str(v), },
+            }
+            ds.append(d)
+        #print ds
+        self.db.write_points(ds)
+
+db = DB()
+
+#
+#
+
+def post(key, **kwargs):
+    #log("post", key, kwargs)
+    db.write(key, **kwargs)
+
+#
 #
 
 def get_period(tag):
-    t = {
-        'dust' : 60*60,
-        'gateway' : 30*60,
-    }
-    return datetime.timedelta(seconds=t.get(tag, 600))
+    # no rate limiting
+    return datetime.timedelta(seconds=1)
+    #t = {
+    #    'dust' : 60*60,
+    #    'gateway' : 30*60,
+    #}
+    #return datetime.timedelta(seconds=t.get(tag, 600))
 
 # timestamps of last tx by tag
 tags = {}
@@ -58,25 +92,27 @@ last = {}
 def tx_cloud(tag, **kwargs):
     # check if it has changed
     state = last.get(tag)
-    if kwargs == state:
-        log("No change", tag, kwargs)
-        return
+    #if kwargs == state:
+    #    log("No change", tag, kwargs)
+    #    return
 
     # check the elapsed time since last post
     now = datetime.datetime.now()
-    again = tags.get(tag)
-    if not again is None:
-        if again > now:
-            log("Drop", tag, again - now, kwargs)
-            return
+    #again = tags.get(tag)
+    #if not again is None:
+    #    if again > now:
+    #        log("Drop", tag, again - now, kwargs)
+    #        return
 
-    key = keys[tag]["write"]
+    #key = keys[tag]["write"]
+    key = tag
     log("TX", tag, kwargs)
     tags[tag] = now + get_period(tag)
     last[tag] = kwargs
     #return 
     try:
-        execute(cloud.post, key, **kwargs)
+        #log("post", key, kwargs)
+        execute(post, key, **kwargs)
     except Exception, ex:
         #traceback.print_stack(sys.stdout)
         log(str(ex))
@@ -86,8 +122,8 @@ def tx_cloud(tag, **kwargs):
 
 topics = {
     "gateway" : [ "temp", ],
-    "humiditydev_2" : [ "humidity", "temp" ],
-    "voltagedev_9" : [ "temp" ],
+    "humiditydev_2" : [ "vcc", "humidity", "temp" ],
+    "voltagedev_9" : [ "vcc", "temp", "voltage" ],
     #"relaydev_7"
 }
 
@@ -107,8 +143,7 @@ def on_jeenet_msg(x):
     for i, field in enumerate(fields):
         value = data.get(field)
         if not value is None:
-            name = "field" + str(i+1)
-            d[name] = value
+            d[field] = value
 
     if len(d):
         tx_cloud(topic, **d)
@@ -133,14 +168,12 @@ def on_net_msg(x):
         value = data.get(field)
         if value is None:
             continue
-        name = "field" + str(i+1)
-        d[name] = float(value)
+        d[field] = float(value)
 
         def delta(field, value, idx):
             last = last_net.get(field)
             if not last is None:
-                name = "field" + str(idx+1)
-                d[name] = int(float(value)) - int(float(last))
+                d[field] = int(float(value)) - int(float(last))
 
         delta("rx", data.get("rx"), fields.index("rx")+2)
         delta("tx", data.get("tx"), fields.index("tx")+2)
@@ -155,7 +188,7 @@ def on_pressure_msg(x):
     data = json.loads(x.payload)
     pressure = data["p"]
     sea = data["sea"]
-    tx_cloud("barometer", field1=pressure, field2=sea)
+    tx_cloud("barometer", pressure=pressure, sea=sea)
 
 #
 #
@@ -167,7 +200,7 @@ def on_humidity(x):
     dev = data['dev']
     tag = "humidity_" + str(dev)
     #log(tag, humidity, temp)
-    tx_cloud(tag, field1=humidity, field2=temp)
+    tx_cloud(tag, humidity=humidity, temp=temp)
 
 #
 #
@@ -197,7 +230,7 @@ def on_weather(x):
 
     tag = "weather"
     #log(tag, temp, pressure, humidity, speed, dirn, cover, rain)
-    tx_cloud(tag, field1=temp, field2=pressure, field3=humidity, field4=speed, field5=dirn, field6=cover, field7=rain)
+    tx_cloud(tag, temp=temp, sea=pressure, humidity=humidity, windspeed=speed, winddirn=dirn, cloudcover=cover, rain=rain)
 
 #
 #
@@ -234,7 +267,7 @@ def on_home_msg(x):
 
     temp = data.get("temp")
     if not temp is None:
-        tx_cloud(tag, field1=temp)
+        tx_cloud(tag, temp=temp)
 
 #
 #
@@ -257,7 +290,7 @@ def on_dust_msg(x):
     dust = data["dust"]
     dust_5 = data["dust_5"]
     dust_10 = data["dust_10"]
-    tx_cloud("dust", field1=dust, field2=dust_5, field3=dust_10)
+    tx_cloud("dust", dust=dust, dust5=dust_5, dust10=dust_10)
 
 #
 #
@@ -330,7 +363,7 @@ def on_solar(x):
     else:
         acc = 0
 
-    tx_cloud("solar", field1=power, field2=kwh, field3=acc)
+    tx_cloud("solar", power=power, kwh=kwh, total=acc)
 
 #
 #
@@ -398,7 +431,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         test(sys.argv[1])
     else:
-        cloud = ThingSpeak()
+        #cloud = ThingSpeak()
+        pass
 
     mqtt = broker.Broker("thingspeak_" + str(os.getpid()), server="mosquitto")
 
