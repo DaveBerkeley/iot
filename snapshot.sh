@@ -33,4 +33,6 @@ cp $P "/usr/local/data/DIGICAM/$NAME.jpg"
 #echo "R" | mosquitto_pub -h $MQTT -t $TOPIC_CAM -l -r
 echo "R" | mosquitto_pub -h $MQTT -t $TOPIC_LAMP -l -r
 
+convert -delay 20 -loop 0 $(find /usr/local/data/snap/$NAME/ -name "*.jpg" | sort | tail -n 96 ) /usr/local/data/DIGICAM/$NAME.gif
+
 # FIN
