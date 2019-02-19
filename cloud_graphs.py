@@ -58,7 +58,7 @@ class DB:
             d = {
                 'measurement' : k,
                 'tags' : { 'src' : key },
-                'fields' : { k : str(v), },
+                'fields' : { k : float(v), },
             }
             ds.append(d)
         #print ds
