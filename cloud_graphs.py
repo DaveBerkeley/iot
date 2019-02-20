@@ -64,14 +64,12 @@ class DB:
         #print ds
         self.db.write_points(ds)
 
-db = DB()
-
 #
 #
 
 def post(key, **kwargs):
     #log("post", key, kwargs)
-    db.write(key, **kwargs)
+    cloud.write(key, **kwargs)
 
 #
 #
@@ -217,7 +215,7 @@ def on_weather(x):
 
     wind = data['wind']
     speed = str(wind['speed'])
-    dirn = str(wind['deg'])
+    deg = str(wind['deg'])
 
     clouds = data['clouds']
     cover = str(clouds['all'])
@@ -229,8 +227,8 @@ def on_weather(x):
         rain = "0"
 
     tag = "weather"
-    #log(tag, temp, pressure, humidity, speed, dirn, cover, rain)
-    tx_cloud(tag, temp=temp, sea=pressure, humidity=humidity, windspeed=speed, winddirn=dirn, cloudcover=cover, rain=rain)
+    #log(tag, temp, pressure, humidity, speed, deg, cover, rain)
+    tx_cloud(tag, temp=temp, sea=pressure, humidity=humidity, windspeed=speed, winddeg=deg, cloudall=cover, rain=rain)
 
 #
 #
@@ -255,19 +253,31 @@ snoopie_lut = {
     '18:fe:34:9c:56:ca' : 'snoopie_09', # Front bedroom
 }
 
+node_lut = {
+    # This is crap. The ipaddr (x.x.x.node) can change
+    # Needs to be fixed to MAC address, and macaddr passed in.
+    # These values checked 20-Feb-2019
+    u'209' : 'snoopie_04', # front room
+    u'165' : 'snoopie_05', # office
+    u'231' : 'snoopie_08', # back room -over rad
+    u'229' : 'snoopie_09', # bedroom
+}
+
 def on_home_msg(x):
     data = json.loads(x.payload)
     # TODO : make this smarter!
-    ip = data.get("ipaddr")
-    mac = ip_2_mac(ip)
-    tag = snoopie_lut.get(mac)
+    node = data.get("node")
+    tag = node_lut.get(node)
     if tag is None:
         return
-    #log("TAG", tag, mac)
 
-    temp = data.get("temp")
-    if not temp is None:
-        tx_cloud(tag, temp=temp)
+    d = {}
+    for field in [ "temp", "pir" ]:
+        value = data.get(field)
+        if not value is None:
+            d[field] = value
+    if d:
+        tx_cloud(tag, **d)
 
 #
 #
@@ -371,7 +381,7 @@ def on_solar(x):
 def test(name):
 
     class Dummy:
-        def post(self, key, **kwargs):
+        def write(self, key, **kwargs):
             log("put", key, kwargs)
 
     global cloud
@@ -431,8 +441,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         test(sys.argv[1])
     else:
-        #cloud = ThingSpeak()
-        pass
+        cloud = DB()
 
     mqtt = broker.Broker("thingspeak_" + str(os.getpid()), server="mosquitto")
 
