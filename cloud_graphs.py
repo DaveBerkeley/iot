@@ -226,7 +226,8 @@ def on_weather(x):
     else:
         rain = "0"
 
-    tag = "weather"
+    # typically 'owm.plymouth'
+    tag = data.get('src', 'xx') + '.' + data.get('id','yy').lower()
     #log(tag, temp, pressure, humidity, speed, deg, cover, rain)
     tx_cloud(tag, temp=temp, sea=pressure, humidity=humidity, windspeed=speed, winddeg=deg, cloudall=cover, rain=rain)
 
