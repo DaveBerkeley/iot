@@ -284,16 +284,23 @@ def read_weather(writer, path):
         topic = src + '.' + where.lower()
         tt = d['time'] # 'yyyy/mm/dd hh:mm:ss'
 
-        def out(key, fields, name):
+        def out(key, fields, name, fn=None):
             if d.get(key):
                 for field in fields:
                     value = d[key].get(field)
                     if not value is None:
-                        writer.output(name + field, topic, value, tt)
+                        txt = fn(name, field, topic)
+                        writer.output(txt, topic, value, tt)
 
-        out('main', [ 'temp', 'humidity', 'pressure' ], '')
-        out('wind', [ 'speed', 'deg' ], 'wind')
-        out('clouds', [ 'all' ], 'cloud')
+        def def_fn(name, field, topic):
+            return name + field
+        def rain_fn(name, field, topic):
+            return "rain"
+
+        out('main', [ 'temp', 'humidity', 'pressure' ], '', def_fn)
+        out('wind', [ 'speed', 'deg' ], 'wind', def_fn)
+        out('clouds', [ 'all' ], 'cloud', def_fn)
+        out('rain', [ '3h' ], '', rain_fn)
 
 #
 #
