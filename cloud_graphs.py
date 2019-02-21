@@ -129,7 +129,6 @@ def on_jeenet_msg(x):
     data = json.loads(x.payload)
 
     topic = x.topic.split("/")[-1]
-    #log(data, topic)
 
     fields = topics.get(topic)
     if not fields:

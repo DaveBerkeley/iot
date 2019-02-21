@@ -7,3 +7,5 @@ solar_conf.py
 stasi_conf.py
 weather_conf.py
 thing_speak_keys.py
+data_*.txt
+data_*.txt.gz

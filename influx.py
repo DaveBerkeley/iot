@@ -5,12 +5,25 @@ import os
 import json
 import datetime
 import argparse
+from threading import Lock
 
 #
 #
 
-def alert(text):
-    sys.stderr.write(text + '\n')
+#
+#
+
+log_lock = Lock()
+
+def log(*args):
+    with log_lock:
+        now = datetime.datetime.now()
+        ymd = now.strftime("%Y/%m/%d")
+        hms = now.strftime("%H:%M:%S.%f")
+        sys.stderr.write(ymd + " " + hms[:-3] + ' ')
+        for arg in args:
+            sys.stderr.write(str(arg) + ' ')
+        sys.stderr.write("\n")
 
 #
 #
@@ -64,7 +77,7 @@ class Writer:
         self.idx += 1
         self.header()
 
-        alert('writing to ' + path)
+        log('writing to', path)
 
     def write(self, data):
         self.fout.write(data)
@@ -102,7 +115,7 @@ devices = {
     "humidity/1" : humidity,
     "humidity/2" : humidity,
 
-    # not used yet
+    # not used yet, or obsolete
     "jeenet/kettle" : [ ],
     "jeenet/PIR" : [ ],
     "jeenet/Triac_4" : [ ],
@@ -153,11 +166,13 @@ def read_iot(writer, path):
 
         topic = d.get('subtopic')
 
-        if topic:
+        if topic and ('jeenet' in topic):
             # jeenet based radio devices
             fields = devices[topic]
-            #topic = topic.replace('/', '_')
             topic = topic.split('/')[-1]
+        elif topic:
+            fields = devices[topic]
+            topic = topic.replace('/', '_')
         else:
             # wifi based devices
             ip = d.get('ipaddr')
@@ -185,7 +200,7 @@ def read_iot(writer, path):
             node = ip.split('.')[-1]
             topic = node_lut.get(node)
             if not topic:
-                alert("no name for %s %s" % (node, type(node)))
+                log("no name for %s %s" % (node, type(node)))
                 return
 
         tt = d['time']
@@ -315,7 +330,7 @@ def read(writer, path, fn, ymd=None):
             yy, mm, dd = parse_path(p)
             if ymd > (yy, mm, dd):
                 continue
-        alert(p)
+        log(p)
         fn(writer, p)
 
 #
@@ -338,6 +353,7 @@ if __name__ == "__main__":
 
     writer = Writer(database, args.out, args.lines)
 
+    # TODO : last n months?
     ymd = ('2019', '01', '01')
 
     read(writer, '/usr/local/data/weather', read_weather, ymd=ymd)
