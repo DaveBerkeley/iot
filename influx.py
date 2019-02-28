@@ -64,9 +64,9 @@ class Writer:
     def header(self):
         # write header
         self.write('# DDL')
-        self.write('CREATE DATABASE ' + database)
+        self.write('CREATE DATABASE ' + self.database)
         self.write('# DML')
-        self.write('# CONTEXT-DATABASE: ' + database)
+        self.write('# CONTEXT-DATABASE: ' + self.database)
         self.write('')
 
     def fopen(self):
