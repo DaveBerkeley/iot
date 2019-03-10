@@ -123,7 +123,7 @@ topics = {
     "humiditydev_2" : [ "vcc", "humidity", "temp" ],
     "voltagedev_9" : [ "vcc", "temp", "voltage" ],
     "magnetometerdev_12" : [ "x", "y", "z", "vcc" ],
-    #"relaydev_7"
+    "relaydev_7" : [ "vcc", "temp" ],
 }
 
 def on_jeenet_msg(x):
