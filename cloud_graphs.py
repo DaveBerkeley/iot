@@ -121,6 +121,7 @@ def tx_cloud(tag, **kwargs):
 topics = {
     "gateway" : [ "temp", ],
     "humiditydev_2" : [ "vcc", "humidity", "temp" ],
+    "humiditydev_11" : [ "vcc", "humidity", "temp" ],
     "voltagedev_9" : [ "vcc", "temp", "voltage" ],
     "magnetometerdev_12" : [ "x", "y", "z", "vcc" ],
     "relaydev_7" : [ "vcc", "temp" ],
