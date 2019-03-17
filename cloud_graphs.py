@@ -46,11 +46,38 @@ def execute(fn, key, **kwargs):
 #
 #   InfluxDb database interface
 
-class DB:
+class BaseDb:
+
+    def make(self, measurement, value, secs, **kwargs):
+        tags = {}
+        try:
+            value = float(value)
+        except ValueError:
+            pass
+        ds = {
+            'measurement' : measurement,
+            'tags' : tags,
+            'time' : int(secs * 1000000000),
+            'fields' : { 'value' : value, },
+        }
+
+        for k, v in kwargs.items():
+            tags[k] = v
+
+        return ds
+
+#
+#
+
+class DB(BaseDb):
 
     def __init__(self, name='iot'):
         self.db = InfluxDBClient(host='localhost', port=8086)
         self.db.switch_database(name)
+
+    def send(self, points):
+        print(points)
+        self.db.write_points(points)
 
     def write(self, key, **kwargs):
         ds = []
@@ -309,11 +336,22 @@ def on_dust_msg(x):
 
 def on_rivers(x):
     data = json.loads(x.payload)
-    code = data['id']
     level = data['level']
-    d = { }
-    d[code] = level
-    tx_cloud("river", **d)
+    # get date/time
+    tt = data['time']
+    fmt = "%Y/%m/%d %H:%M:%S"
+    dt = datetime.datetime.strptime(tt, fmt)
+    # extract epoch seconds
+    epoch = datetime.datetime(1970, 1, 1)
+    secs = (dt - epoch).total_seconds()
+
+    # 
+    d = { 
+        'river.site' : data['name'],
+        'river.code' : data['id'],
+    }
+    point = cloud.make("river", level, secs, **d)
+    cloud.send([ point ])
 
 #
 #   Moving Average Filter
@@ -390,9 +428,11 @@ def on_solar(x):
 
 def test(name):
 
-    class Dummy:
+    class Dummy(BaseDb):
         def write(self, key, **kwargs):
             log("put", key, kwargs)
+        def send(self, *args):
+            log("send", args)
 
     global cloud
     cloud = Dummy()
