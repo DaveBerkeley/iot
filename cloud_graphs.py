@@ -307,6 +307,14 @@ def on_dust_msg(x):
 #
 #
 
+def on_rivers(x):
+    data = json.loads(x.payload)
+    code = data['id']
+    level = data['level']
+    d = { }
+    d[code] = level
+    tx_cloud("river", **d)
+
 #
 #   Moving Average Filter
 
@@ -464,6 +472,7 @@ if __name__ == "__main__":
         mqtt.subscribe("home/solar", wrap(on_solar))
         mqtt.subscribe("home/humidity/#", wrap(on_humidity))
         mqtt.subscribe("home/weather", wrap(on_weather))
+        mqtt.subscribe("rivers/level", wrap(on_rivers))
 
     #mqtt.subscribe("home/gas", on_gas_msg)
     mqtt.start()
