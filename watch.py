@@ -294,7 +294,7 @@ syslog_dir = "/var/log"
 
 handlers = {
     iot_dir : iot_handler,
-    #rivers_dir : rivers_handler,
+    rivers_dir : rivers_handler,
     #power_dir : power_handler,
     solar_dir : solar_handler,
     monitor_dir : monitor_handler,
