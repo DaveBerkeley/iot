@@ -290,6 +290,10 @@ node_lut = {
     u'165' : 'snoopie_05', # office
     u'231' : 'snoopie_08', # back room -over rad
     u'229' : 'snoopie_09', # bedroom
+    u'104' : 'snoopie_04', # front room
+    u'105' : 'snoopie_05', # office
+    u'108' : 'snoopie_08', # back room -over rad
+    u'109' : 'snoopie_09', # bedroom
 }
 
 def on_home_msg(x):
