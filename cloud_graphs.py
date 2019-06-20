@@ -358,72 +358,16 @@ def on_rivers(x):
     cloud.send([ point ])
 
 #
-#   Moving Average Filter
-
-class Filter:
-
-    def __init__(self, ntaps):
-        self.ntaps = ntaps
-        self.data = None
-
-    def filter(self, data):
-        if self.data is None:
-            self.data = [ data, ] * self.ntaps
-        self.data = self.data[1:] + [ data ]
-        return int(sum(self.data) / float(self.ntaps))
-
-lpf = Filter(3)
-
-solar_last_w = None
-solar_last_t = None
-solar_yesterday = None
-solar_yesterday_w = None
+#   Solar Power
 
 def on_solar(x):
-    global solar_last_w, solar_last_t, solar_yesterday, solar_yesterday_w
     data = json.loads(x.payload)
     #log("SOLAR", data)
 
     kwh = data.get("power")
-    t = data.get("time")
-
-    t = datetime.datetime.strptime(t, "%Y/%m/%d %H:%M:%S")
-
-    if solar_last_w is None:
-        solar_last_w = kwh
-        solar_last_t = t
-
-        if solar_yesterday_w is None:
-            solar_yesterday_w = kwh
-        return
-
-    today = t.date()
-    if today != solar_last_t.date():
-        # day change
-        solar_yesterday = solar_last_t
-        solar_yesterday_w = solar_last_w
-
-    def get_power(p1, p2, t1, t2):
-        dt = t1 - t2
-        dt = dt.total_seconds() / 3600.0
-
-        if not dt:
-            return None
-
-        dw = p1 - p2
-        power = dw / dt
-        return power
-
-    power = get_power(kwh, solar_last_w, t, solar_last_t)
-    solar_last_t = t
-    solar_last_w = kwh
-
-    power = lpf.filter(power)
-
-    if not solar_yesterday_w is None:
-        acc = kwh - solar_yesterday_w
-    else:
-        acc = 0
+    #t = data.get("time")
+    power = data.get("W")
+    acc = data.get("today")
 
     tx_cloud("solar", power=power, kwh=kwh, total=acc)
 
