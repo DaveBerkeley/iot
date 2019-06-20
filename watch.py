@@ -169,18 +169,83 @@ def power_handler(path, broker, data):
     }
     broker.send("home/power", json.dumps(d))
 
+#
+#   Moving Average Filter
+
+class Filter:
+
+    def __init__(self, ntaps):
+        self.ntaps = ntaps
+        self.data = None
+
+    def filter(self, data):
+        if self.data is None:
+            self.data = [ data, ] * self.ntaps
+        self.data = self.data[1:] + [ data ]
+        return int(sum(self.data) / float(self.ntaps))
+
 #   Solar Power generation meter
 #
 
+solar_last_w = None
+solar_last_t = None
+solar_yesterday = None
+solar_yesterday_w = None
+lpf = Filter(3)
+
 def solar_handler(path, broker, data):
+    global solar_last_w, solar_last_t, solar_yesterday, solar_yesterday_w
     # path: xxxx/yyyy/mm/dd.log
     # 16:53:42 9151773
     parts = path.split("/")
     y, m, d = parts[-3], parts[-2], parts[-1][:2]
-    hms, power = data.split()
+    hms, kwh = data.split()
+    dt = "%s/%s/%s %s" % (y, m, d, hms)
+    kwh = int(kwh, 10)
+
+    t = datetime.datetime.strptime(dt, "%Y/%m/%d %H:%M:%S")
+
+    if solar_last_w is None:
+        solar_last_w = kwh
+        solar_last_t = t
+
+        if solar_yesterday_w is None:
+            solar_yesterday_w = kwh
+        return
+
+    today = t.date()
+    if today != solar_last_t.date():
+        # day change
+        solar_yesterday = solar_last_t
+        solar_yesterday_w = solar_last_w
+
+    def get_power(p1, p2, t1, t2):
+        dt = t1 - t2
+        dt = dt.total_seconds() / 3600.0
+
+        if not dt:
+            return None
+
+        dw = p1 - p2
+        power = dw / dt
+        return power
+
+    power = get_power(kwh, solar_last_w, t, solar_last_t)
+    solar_last_t = t
+    solar_last_w = kwh
+
+    power = lpf.filter(power)
+
+    if not solar_yesterday_w is None:
+        acc = kwh - solar_yesterday_w
+    else:
+        acc = 0
+ 
     d = {
-        "power" : int(power, 10),
-        "time" : "%s/%s/%s %s" % (y, m, d, hms),
+        "power" : kwh,
+        "W" : power,
+        "today" : acc,
+        "time" : dt,
     }
     broker.send("home/solar", json.dumps(d))
 
