@@ -4,6 +4,7 @@ import sys
 import time
 import optparse
 import json
+import threading
 
 import serial
 
@@ -26,6 +27,16 @@ def command(text):
     global s
     log("cmd", text)
     s.write(text + "\r\n")
+
+dead = False
+
+def listen():
+    global s
+    while not dead:
+        t = s.read(1024)
+        if not t:
+            continue
+        log(t.strip())
 
 def on_mqtt(client, x, msg):
     global s
@@ -62,6 +73,9 @@ if __name__ == "__main__":
     base_dev = opts.dev
     s = init_serial(serial_dev)
 
+    thread = threading.Thread(target=listen)
+    thread.start()
+
     # flush the stepper's command buffer
     time.sleep(1);
     command("")
@@ -79,6 +93,12 @@ if __name__ == "__main__":
 
     log("start MQTT client '%s'" % name)
 
-    mqtt.loop_forever()
+    try:
+        mqtt.loop_forever()
+    except KeyboardInterrupt:
+        pass
+
+    dead = True
+    thread.join()
 
 # FIN
