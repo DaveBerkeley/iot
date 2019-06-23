@@ -30,13 +30,30 @@ def command(text):
 
 dead = False
 
-def listen():
-    global s
-    while not dead:
-        t = s.read(1024)
-        if not t:
-            continue
-        log(t.strip())
+class Motor:
+
+    def __init__(self):
+        self.rsp = "X"
+    def response(self, text):
+        log(text)
+        self.rsp = text
+    def ready(self):
+        return sefl.rsp[0] == 'R'
+
+    def listen(self):
+        global s
+        text = ""
+        while not dead:
+            t = s.read(1)
+            if not t:
+                continue
+            text += t
+            if not t in "\n":
+                continue
+            text, rsp = "", text.strip()
+            self.response(rsp)
+
+motor = Motor()
 
 def on_mqtt(client, x, msg):
     global s
@@ -73,7 +90,7 @@ if __name__ == "__main__":
     base_dev = opts.dev
     s = init_serial(serial_dev)
 
-    thread = threading.Thread(target=listen)
+    thread = threading.Thread(target=motor.listen)
     thread.start()
 
     # flush the stepper's command buffer
