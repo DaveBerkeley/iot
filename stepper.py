@@ -34,8 +34,11 @@ class Motor:
 
     def __init__(self):
         self.rsp = "X"
+        self.last = None
     def response(self, text):
-        log(text)
+        if text != self.last:
+            log(text)
+            self.last = text
         self.rsp = text
     def ready(self):
         return sefl.rsp[0] == 'R'
@@ -67,7 +70,7 @@ def on_mqtt(client, x, msg):
         value = data.get("value", "0")
         text = str(cmd + str(int(value)))
         command(text)
-        log("done")
+        #log("done")
     except (serial.serialutil.SerialException, OSError), ex:
         # shut down the serial port and reconnect
         log(str(ex), msg.payload)
