@@ -84,7 +84,7 @@ if __name__ == "__main__":
     p.add_option("-s", "--serial", dest="serial", type="str", default='/dev/arduino')
     p.add_option("-m", "--mqtt-server", dest="mqtt", default="mosquitto")
     p.add_option("-d", "--dev", dest="dev", type="int", default=0)
-    p.add_option("-r", "--range", dest="range", type="int", default=3500)
+    p.add_option("-r", "--range", dest="range", type="int", default=4096)
     p.add_option("-t", "--topic", dest="topic", default="home/stepper/0")
 
     opts, args = p.parse_args()
