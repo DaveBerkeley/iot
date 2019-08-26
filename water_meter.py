@@ -4,6 +4,7 @@ import os
 import time
 import urllib2
 import threading
+import datetime
 
 # http://pyserial.sourceforge.net/
 import serial
@@ -76,6 +77,13 @@ def monitor(name, dev):
     changes = get_counter()
     last_state = None
 
+    def ordinal():
+        dt = datetime.date.today()
+        return dt.toordinal()
+
+    today = ordinal()
+    today_total = 0
+
     while not dead:
         try:
             line = s.readline()
@@ -102,13 +110,19 @@ def monitor(name, dev):
         if state != last_state:
             if not last_state is None:
                 changes += 1
+                today_total += 1
             last_state = state
             set_counter(changes)
+
+        if ordinal() != today:
+            today_total = 0;
+            today = ordinal()
 
         d = {
             "subtopic" : "water/%s" % dev,
             "dev" : dev,            
             "state" : state,
+            "today" : today_total,
             "changes" : changes,
         }
 
