@@ -29,6 +29,25 @@ def log(*args):
 #
 #
 
+var_path = '/var/lib/water_meter/counter.txt'
+
+def get_counter(path=var_path):
+    try:
+        data = open(path).read()
+        c = int(data)
+        return c
+    except IOError:
+        log(path, "not found")
+        return 0
+
+def set_counter(value, path=var_path):
+    f = open(path, "w")
+    f.write("%d" % value)
+    f.close()
+
+#
+#
+
 def init_serial(path):
     log("open serial '%s'" % path)
     s = serial.Serial(path, baudrate=9600, timeout=1, rtscts=True)
@@ -54,7 +73,7 @@ def monitor(name, dev):
     path = '/dev/' + name
     s = init_serial(path)
 
-    changes = 0
+    changes = get_counter()
     last_state = None
 
     while not dead:
@@ -81,8 +100,10 @@ def monitor(name, dev):
         milis, state = parts
 
         if state != last_state:
-            changes += 1
+            if not last_state is None:
+                changes += 1
             last_state = state
+            set_counter(changes)
 
         d = {
             "subtopic" : "water/%s" % dev,
