@@ -231,6 +231,18 @@ def on_humidity(x):
 #
 #
 
+def on_water(x):
+    data = json.loads(x.payload)
+    changes = data['changes']
+    today = data['today']
+    dev = data['dev']
+    tag = "water_" + str(dev)
+    #log(tag, humidity, temp)
+    tx_cloud(tag, water=changes, water_today=today)
+
+#
+#
+
 def on_weather(x):
     data = json.loads(x.payload)
     main = data.get('main')
@@ -460,6 +472,7 @@ if __name__ == "__main__":
         mqtt.subscribe("home/solar", wrap(on_solar))
         mqtt.subscribe("home/humidity/#", wrap(on_humidity))
         mqtt.subscribe("home/weather", wrap(on_weather))
+        mqtt.subscribe("home/water/#", wrap(on_water))
         mqtt.subscribe("rivers/level", wrap(on_rivers))
 
     #mqtt.subscribe("home/gas", on_gas_msg)
