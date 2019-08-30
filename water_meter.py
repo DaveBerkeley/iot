@@ -35,7 +35,7 @@ var_path = '/var/lib/water_meter/counter.txt'
 def get_counter(path=var_path):
     try:
         data = open(path).read()
-        c = int(data)
+        c = float(data)
         return c
     except IOError:
         log(path, "not found")
@@ -43,7 +43,7 @@ def get_counter(path=var_path):
 
 def set_counter(value, path=var_path):
     f = open(path, "w")
-    f.write("%d" % value)
+    f.write("%.4f" % value)
     f.close()
 
 #
@@ -107,10 +107,15 @@ def monitor(name, dev):
 
         milis, state = parts
 
+        # one rotation is 10 litres
+        # ie. 0.01 of a cubic metre
+        # so each count (roughly) is 0.005
+        increment = 0.005
+
         if state != last_state:
             if not last_state is None:
-                changes += 1
-                today_total += 1
+                changes += increment
+                today_total += increment
             last_state = state
             set_counter(changes)
 
