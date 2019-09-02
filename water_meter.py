@@ -43,7 +43,7 @@ def get_counter(path=var_path):
 
 def set_counter(value, path=var_path):
     f = open(path, "w")
-    f.write("%.4f" % value)
+    f.write("%d" % value)
     f.close()
 
 #
@@ -110,7 +110,10 @@ def monitor(name, dev):
         # one rotation is 10 litres
         # ie. 0.01 of a cubic metre
         # so each count (roughly) is 0.005
-        increment = 0.005
+        if state:
+            increment = 6
+        else:
+            increment = 4
 
         if state != last_state:
             if not last_state is None:
