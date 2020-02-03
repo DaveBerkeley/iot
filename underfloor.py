@@ -9,8 +9,6 @@ import argparse
 # http://pyserial.sourceforge.net/
 import serial
 
-import broker
-
 #
 #
 
@@ -40,24 +38,18 @@ class Underfloor:
     lut = { 
         'd' : 'distance',
         'h' : 'humidity',
-        'f' : 'fan',
-        'p' : 'pump',
         't' : 'temp',
     }
 
-    slow = 'h', 't'
-
-    def __init__(self, broker, topic, path, period=10):
+    def __init__(self, path, period=10):
         self.dead = False
         self.path = path
         self.s = init_serial(self.path)
         self.data = {}
         self.idx = 0
         self.period = period
-        self.broker = broker
         self.last = None
         self.last_time = 0
-        self.topic = topic
 
     def parse(self, line):
         d = {}
@@ -65,9 +57,6 @@ class Underfloor:
         parts = line.split()
         for part in parts:
             key, value = part.split('=')
-            if key in self.slow:
-                if self.idx != 0:
-                    continue
             d[self.lut[key]] = float(value)
 
         self.idx += 1
@@ -105,35 +94,18 @@ class Underfloor:
 
             self.last_time = now
             self.last = d
-            self.broker.send(self.topic, json.dumps(d))
 
-    def on_fan(self, x):
-        log("on_fan", x.payload)
-        # validate!
-        assert x.payload[0] == 'f', x.payload
-        self.s.write(x.payload + '\r\n')
-
-    def on_pump(self, x):
-        log("on_pump", x.payload)
-        # validate!
-        assert x.payload[0] == 'p', x.payload
-        self.s.write(x.payload + '\r\n')
+            log(d)
 
 #
 #
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Interface underfloor nano to MQTT')
+    parser = argparse.ArgumentParser(description='Interface underfloor nano')
     parser.add_argument('--dev', dest='dev', default='/dev/underfloor')
-    parser.add_argument('--mqtt', dest='mqtt', default='mosquitto')
-    parser.add_argument('--topic', dest='topic', default='home/underfloor')
-    parser.add_argument('--fan', dest='fan', default='home/fan/0')
-    parser.add_argument('--pump', dest='pump', default='home/pump/0')
 
     args = parser.parse_args()
-
-    mqtt = broker.Broker("underfloor" + str(os.getpid()), server=args.mqtt)
 
     def wrap(fn):
         def f(line):
@@ -143,20 +115,13 @@ if __name__ == "__main__":
                 log("Exception", str(fn), str(ex))
         return f
 
-    usb = Underfloor(mqtt, args.topic, args.dev)
-
-    mqtt.subscribe(args.fan, wrap(usb.on_fan))
-    mqtt.subscribe(args.pump, wrap(usb.on_pump))
+    usb = Underfloor(args.dev)
 
     try:
-        mqtt.start()
         usb.monitor()
     except KeyboardInterrupt:
         pass
     except Exception as ex:
         log("exception", str(ex))
-
-    mqtt.stop()
-    mqtt.join()
 
 # FIN
