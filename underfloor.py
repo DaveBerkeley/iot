@@ -5,6 +5,7 @@ import time
 import threading
 import json
 import argparse
+import urllib2
 
 # http://pyserial.sourceforge.net/
 import serial
@@ -20,6 +21,18 @@ def log(*args):
         for arg in args:
             print arg,
         print
+
+#
+#
+
+def get(server, data):
+    url = "http://%s/wiki/iot.cgp?" % server
+    args = []
+    for key, value in data.items():
+        args.append("%s=%s" % (key, value))
+
+    url += "&".join(args)
+    urllib2.urlopen(url)
 
 #
 #
@@ -41,7 +54,7 @@ class Underfloor:
         't' : 'temp',
     }
 
-    def __init__(self, path, period=10):
+    def __init__(self, path, server, topic, period=9):
         self.dead = False
         self.path = path
         self.s = init_serial(self.path)
@@ -50,6 +63,8 @@ class Underfloor:
         self.period = period
         self.last = None
         self.last_time = 0
+        self.topic = topic
+        self.server = server
 
     def parse(self, line):
         d = {}
@@ -87,6 +102,8 @@ class Underfloor:
                 log("exception", str(ex))
                 continue
 
+            d['subtopic'] = self.topic
+
             now = time.time()
             if d == self.last:
                 if (self.last_time + self.period) > now:
@@ -95,7 +112,7 @@ class Underfloor:
             self.last_time = now
             self.last = d
 
-            log(d)
+            get(self.server, d)
 
 #
 #
@@ -104,18 +121,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Interface underfloor nano')
     parser.add_argument('--dev', dest='dev', default='/dev/underfloor')
+    parser.add_argument('--topic', dest='topic', default='underfloor/0')
+    parser.add_argument('--server', dest='server', default='mosquitto')
 
     args = parser.parse_args()
 
-    def wrap(fn):
-        def f(line):
-            try:
-                fn(line)
-            except Exception as ex:
-                log("Exception", str(fn), str(ex))
-        return f
-
-    usb = Underfloor(args.dev)
+    usb = Underfloor(args.dev, args.server, args.topic)
 
     try:
         usb.monitor()
