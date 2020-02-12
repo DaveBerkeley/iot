@@ -384,6 +384,20 @@ def on_solar(x):
     tx_cloud("solar", power=power, kwh=kwh, total=acc)
 
 #
+#   Sump Pump monitor
+
+def on_sump(x):
+    data = json.loads(x.payload)
+    #log("SUMP", data)
+
+    distance = data.get("distance")
+    #t = data.get("time")
+    temp = data.get("temp")
+    humidity = data.get("humidity")
+
+    tx_cloud("sump", distance=distance, temp=temp, humidity=humidity)
+
+#
 #
 
 def test(name):
@@ -474,6 +488,7 @@ if __name__ == "__main__":
         mqtt.subscribe("home/weather", wrap(on_weather))
         mqtt.subscribe("home/water/#", wrap(on_water))
         mqtt.subscribe("rivers/level", wrap(on_rivers))
+        mqtt.subscribe("home/underfloor/#", wrap(on_sump))
 
     #mqtt.subscribe("home/gas", on_gas_msg)
     mqtt.start()
