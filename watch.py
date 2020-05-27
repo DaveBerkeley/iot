@@ -179,6 +179,8 @@ class Filter:
         self.data = None
 
     def filter(self, data):
+        if data is None:
+            return
         if self.data is None:
             self.data = [ data, ] * self.ntaps
         self.data = self.data[1:] + [ data ]
@@ -191,7 +193,7 @@ solar_last_w = None
 solar_last_t = None
 solar_yesterday = None
 solar_yesterday_w = None
-lpf = Filter(3)
+lpf = Filter(16)
 
 def solar_handler(path, broker, data):
     global solar_last_w, solar_last_t, solar_yesterday, solar_yesterday_w
