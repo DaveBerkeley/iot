@@ -191,10 +191,12 @@ solar_last_w = None
 solar_last_t = None
 solar_yesterday = None
 solar_yesterday_w = None
-lpf = Filter(3)
+
+solar_history = []
 
 def solar_handler(path, broker, data):
     global solar_last_w, solar_last_t, solar_yesterday, solar_yesterday_w
+    global solar_history
     # path: xxxx/yyyy/mm/dd.log
     # 16:53:42 9151773
     parts = path.split("/")
@@ -205,6 +207,29 @@ def solar_handler(path, broker, data):
 
     t = datetime.datetime.strptime(dt, "%Y/%m/%d %H:%M:%S")
 
+    solar_history.append((t, kwh))
+
+    if len(solar_history) < 2:
+        return
+
+    while True:
+        start_t, start_w = solar_history[0]
+        end_t, end_w = solar_history[-1]
+        d_t = end_t - start_t
+        d_w = end_w - start_w
+
+        if len(solar_history) > 2:
+            if (d_t.total_seconds() > 60):
+                solar_history = solar_history[1:]
+                continue
+
+        break
+
+    if d_t.total_seconds() == 0:
+        return
+
+    power = d_w * 3600.0 / d_t.total_seconds()
+    
     if solar_last_w is None:
         solar_last_w = kwh
         solar_last_t = t
@@ -219,22 +244,8 @@ def solar_handler(path, broker, data):
         solar_yesterday = solar_last_t
         solar_yesterday_w = solar_last_w
 
-    def get_power(p1, p2, t1, t2):
-        dt = t1 - t2
-        dt = dt.total_seconds() / 3600.0
-
-        if not dt:
-            return None
-
-        dw = p1 - p2
-        power = dw / dt
-        return power
-
-    power = get_power(kwh, solar_last_w, t, solar_last_t)
     solar_last_t = t
     solar_last_w = kwh
-
-    power = lpf.filter(power)
 
     if not solar_yesterday_w is None:
         acc = kwh - solar_yesterday_w
