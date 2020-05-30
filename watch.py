@@ -230,7 +230,7 @@ def solar_handler(path, broker, data):
     if d_t.total_seconds() == 0:
         return
 
-    power = d_w * 3600.0 / d_t.total_seconds()
+    power = int(d_w * 3600.0 / d_t.total_seconds())
     
     if solar_last_w is None:
         solar_last_w = kwh
