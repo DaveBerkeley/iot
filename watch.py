@@ -179,6 +179,8 @@ class Filter:
         self.data = None
 
     def filter(self, data):
+        if data is None:
+            return
         if self.data is None:
             self.data = [ data, ] * self.ntaps
         self.data = self.data[1:] + [ data ]
