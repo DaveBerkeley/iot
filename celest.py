@@ -4,14 +4,28 @@ import time
 import datetime
 import json
 import os
+import argparse
+import urllib
 
 # https://pypi.org/project/pyephem/
 import ephem
 
 import broker3
 
-lat="50.3896"
-lon="-4.1358"
+ISS = 'https://www.celestrak.com/NORAD/elements/stations.txt'
+
+#
+#
+
+def log(*args):
+    now = datetime.datetime.now()
+    print(now, '', end='')
+    for arg in args:
+        print(arg, end='')
+    print()
+
+#
+#
 
 class Solar:
 
@@ -55,29 +69,93 @@ class Solar:
 #
 #
 
-while True:
-    
-    now = datetime.datetime.now()
-    s = Solar(lat=lat, lon=lon)
+def get_iss(url, lat, lon):
+    req = urllib.request.urlopen(url)
+    if req.getcode() != 200:
+        log("error reading", url)
+        return
 
-    d = {
-        'sun' : s.sun(),
-        'moon' : s.moon(),
-        'mercury' : s.mercury(),
-        'mars' : s.mars(),
-        'venus' : s.venus(),
-        'jupiter' : s.jupiter(),
-        'saturn' : s.saturn(),
-        'time' : now.strftime('%Y/%m/%d %H:%M:%S'),
-        'z' : 'local',
-    }
+    data = req.read()
+    data = data.decode('utf-8')
 
-    text = json.dumps(d)
+    lines = data.split('\r\n')
+    found = []
+    for line in lines:
+        line = line.strip()
+        if line == 'ISS (ZARYA)':
+            found.append(line)
+            continue
+        if found:
+            found.append(line)
+            if len(found) == 3:
+                break
 
-    _id = "celest_%d" % os.getpid()
-    broker = broker3.Broker(_id, server="mosquitto")
-    broker.send("home/celest", text)
+    def iss():
+        return ephem.readtle(*found)
+  
+    solar = Solar(lat=lat, lon=lon)
+    return solar.fn(iss)
 
-    time.sleep(60)
+#
+#
+
+class TestBroker:
+    def send(self, *args):
+        log(args)
+
+#
+#
+
+if __name__ == '__main__':
+
+    p = argparse.ArgumentParser(description='Generate celestial data')
+    p.add_argument('--test', dest='test', action='store_true')
+    p.add_argument('--iss', dest='iss', action='store_true')
+    p.add_argument('--period', dest='period', type=int, default=60)
+    p.add_argument('--mqtt', dest='mqtt', default='mosquitto')
+    p.add_argument('--lat', dest='lat', type=float, default=50.3896)
+    p.add_argument('--lon', dest='lon', type=float, default=-4.1358)
+
+    args = p.parse_args()
+
+    #
+    #
+
+    if args.test:
+        broker = TestBroker()
+    else:
+        _id = "celest_%d" % os.getpid()
+        broker = broker3.Broker(_id, server=args.server)
+
+    #
+    #
+
+    while True:
+ 
+        now = datetime.datetime.now()
+        s = Solar(lat=args.lat, lon=args.lon)
+
+        d = {
+            'sun' : s.sun(),
+            'moon' : s.moon(),
+            'mercury' : s.mercury(),
+            'mars' : s.mars(),
+            'venus' : s.venus(),
+            'jupiter' : s.jupiter(),
+            'saturn' : s.saturn(),
+            'time' : now.strftime('%Y/%m/%d %H:%M:%S'),
+            'z' : 'local',
+        }
+
+        if args.iss:
+            try:
+                d['iss'] = get_iss(ISS, args.lat, args.lon)
+            except Exception as ex:
+                log("Error", str(ex))
+
+        text = json.dumps(d)
+        broker.send("home/celest", text)
+
+        time.sleep(args.period)
 
 # FIN
