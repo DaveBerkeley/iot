@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import argparse
+import math
 import urllib.request
 
 # https://pypi.org/project/pyephem/
@@ -23,6 +24,12 @@ def log(*args):
     for arg in args:
         print(arg, end='')
     print()
+
+#
+#
+
+def radians(degrees):
+    return math.pi * degrees / 180.0
 
 #
 #
@@ -117,6 +124,9 @@ if __name__ == '__main__':
     p.add_argument('--lon', dest='lon', type=float, default=-4.1358)
 
     args = p.parse_args()
+
+    args.lat = radians(args.lat)
+    args.lon = radians(args.lon)
 
     #
     #
