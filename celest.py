@@ -5,7 +5,7 @@ import datetime
 import json
 import os
 import argparse
-import urllib
+import urllib.request
 
 # https://pypi.org/project/pyephem/
 import ephem
@@ -125,7 +125,7 @@ if __name__ == '__main__':
         broker = TestBroker()
     else:
         _id = "celest_%d" % os.getpid()
-        broker = broker3.Broker(_id, server=args.server)
+        broker = broker3.Broker(_id, server=args.mqtt)
 
     #
     #
