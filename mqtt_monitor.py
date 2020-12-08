@@ -39,24 +39,26 @@ def write(data):
     log(data)
 
     now = datetime.date.today()
-    path = '/usr/local/data/iot/%04d/%02d/%02d_mqtt.log' % (now.year, now.month, now.day)
+    path = '/usr/local/data/mqtt/%04d/%02d/%02d.log' % (now.year, now.month, now.day)
 
     global filename, fout
     if path != filename:
         if fout:
             fout.close()
             fout = None
+        filename = path
         dirname, _ = os.path.split(path)
         if not os.path.exists(dirname):
             log("makedir", dirname)
             if not debug:
-               os.mkdir(dirname)
+               os.makedirs(dirname)
 
     if not debug:
         if not fout:
             fout = open(filename, "w")
 
         fout.write(data + '\n')
+        fout.flush()
 
 #
 #
@@ -70,25 +72,30 @@ def tasmota(x):
     #    return
     device = parts[1]
     cmd = parts[2]
-    data = json.loads(x.payload)
+    try:
+        data = json.loads(x.payload)
+    except Exception:
+        log("json error", x.topic, x.payload)
+        return
     data['Device'] = device
     data['cmd'] = cmd
-    write(data)
+    write(json.dumps(data))
 
 #
 #
 
-debug = True
+if __name__ == "__main__":
+    debug = False
 
-mqtt = broker.Broker("mqtt_mon_" + str(os.getpid()), server="mosquitto")
+    mqtt = broker.Broker("mqtt_mon_" + str(os.getpid()), server="mosquitto")
 
-mqtt.subscribe('tele/#', wrap(tasmota))
-mqtt.start()
+    mqtt.subscribe('tele/#', wrap(tasmota))
+    mqtt.start()
 
-while True:
-    time.sleep(1)
+    while True:
+        time.sleep(1)
 
-mqtt.stop()
-mqtt.join()
+    mqtt.stop()
+    mqtt.join()
 
 #   FIN
