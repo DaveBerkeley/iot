@@ -400,6 +400,26 @@ def on_sump(x):
 #
 #
 
+def on_mqtt(x):
+    try:
+        data = json.loads(x.payload)
+    except:
+        return
+
+    parts = x.topic.split('/')
+    if parts[2] != 'SENSOR':
+        return
+
+    dev = parts[1]
+    co2 = data['MHZ19B']['CarbonDioxide']
+    temp = data['MHZ19B']['Temperature']
+
+    #log("MQTT", dev, co2, temp)
+    tx_cloud(dev, co2=co2, temp=temp)
+
+#
+#
+
 def test(name):
 
     class Dummy(BaseDb):
@@ -475,6 +495,7 @@ if __name__ == "__main__":
                 fn(line)
             except Exception as ex:
                 log("Exception", str(fn), str(ex))
+                #traceback.print_stack(sys.stdout)
         return f
 
     if 1:
@@ -489,6 +510,7 @@ if __name__ == "__main__":
         mqtt.subscribe("home/water/#", wrap(on_water))
         mqtt.subscribe("rivers/level", wrap(on_rivers))
         mqtt.subscribe("home/underfloor/#", wrap(on_sump))
+        mqtt.subscribe("tele/#", wrap(on_mqtt)) # Tasmota
 
     #mqtt.subscribe("home/gas", on_gas_msg)
     mqtt.start()
