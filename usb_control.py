@@ -68,6 +68,9 @@ class UsbControl:
             return idx
         diff = ""
         for x in map(int, idx):
+            if x >= len(self.state):
+                log("bad index", x)
+                continue
             if self.state[x] != state:
                 diff += chr(x + ord('0'))
         return diff
