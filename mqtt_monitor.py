@@ -2,6 +2,7 @@
 
 import time, datetime
 import os
+import sys
 import json
 
 import broker3 as broker
@@ -85,7 +86,8 @@ def tasmota(x):
 #
 
 if __name__ == "__main__":
-    debug = False
+
+    debug = len(sys.argv) > 1
 
     mqtt = broker.Broker("mqtt_mon_" + str(os.getpid()), server="mosquitto")
 
