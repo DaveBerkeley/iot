@@ -1,4 +1,4 @@
-#!/usr/bin/python -u
+#!/usr/bin/python3 -u
 
 import time
 import datetime
@@ -8,7 +8,7 @@ import sys
 import os
 from threading import Lock, Thread
 
-import broker
+import broker3 as broker
 
 from influxdb import InfluxDBClient
 
@@ -25,10 +25,10 @@ def log(*args):
     now = datetime.datetime.now()
     ymd = now.strftime("%Y/%m/%d")
     hms = now.strftime("%H:%M:%S.%f")
-    print ymd + " " + hms[:-3],
+    print(ymd + " " + hms[:-3], end=' ')
     for arg in args:
-        print arg,
-    print
+        print(arg, end=' ')
+    print()
     log_lock.release()
 
 #   Run the send in a thread.
@@ -61,7 +61,7 @@ class BaseDb:
             'fields' : { 'value' : value, },
         }
 
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             tags[k] = v
 
         return ds
@@ -81,7 +81,7 @@ class DB(BaseDb):
 
     def write(self, key, **kwargs):
         ds = []
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             d = {
                 'measurement' : k,
                 'tags' : { 'src' : key },
@@ -138,7 +138,7 @@ def tx_cloud(tag, **kwargs):
     try:
         #log("post", key, kwargs)
         execute(post, key, **kwargs)
-    except Exception, ex:
+    except Exception as ex:
         #traceback.print_stack(sys.stdout)
         log(str(ex))
 
@@ -298,14 +298,14 @@ node_lut = {
     # This is crap. The ipaddr (x.x.x.node) can change
     # Needs to be fixed to MAC address, and macaddr passed in.
     # These values checked 20-Feb-2019
-    u'209' : 'snoopie_04', # front room
-    u'165' : 'snoopie_05', # office
-    u'231' : 'snoopie_08', # back room -over rad
-    u'229' : 'snoopie_09', # bedroom
-    u'104' : 'snoopie_04', # front room
-    u'105' : 'snoopie_05', # office
-    u'108' : 'snoopie_08', # back room -over rad
-    u'109' : 'snoopie_09', # bedroom
+    '209' : 'snoopie_04', # front room
+    '165' : 'snoopie_05', # office
+    '231' : 'snoopie_08', # back room -over rad
+    '229' : 'snoopie_09', # bedroom
+    '104' : 'snoopie_04', # front room
+    '105' : 'snoopie_05', # office
+    '108' : 'snoopie_08', # back room -over rad
+    '109' : 'snoopie_09', # bedroom
 }
 
 def on_home_msg(x):
@@ -411,11 +411,20 @@ def on_mqtt(x):
         return
 
     dev = parts[1]
-    co2 = data['MHZ19B']['CarbonDioxide']
-    temp = data['MHZ19B']['Temperature']
 
-    #log("MQTT", dev, co2, temp)
-    tx_cloud(dev, co2=co2, temp=temp)
+    if 'MHZ19B' in data:
+        # see notes LinuxNotes_08-Dec-2020
+        co2 = data['MHZ19B']['CarbonDioxide']
+        temp = data['MHZ19B']['Temperature']
+        #log("MQTT", dev, co2, temp)
+        tx_cloud(dev, co2=co2, temp=temp)
+
+    if 'PMS5003' in data:
+        # see notes LinuxNotes_30-Jul-2021
+        d = {}
+        for field in ['PM1','PM2.5','PM10','PB0.3','PB0.5','PB1','PB2.5','PB5','PB10']:
+            d[field] = data['PMS5003'][field]
+        tx_cloud(dev, **d)
 
 #
 #
@@ -521,7 +530,7 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             log("irq")
             break
-        except Exception, ex:
+        except Exception as ex:
             traceback.print_stack(sys.stdout)
             raise
 
